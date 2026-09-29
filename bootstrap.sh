@@ -1,28 +1,17 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-INSTALLER_URL="${WOLFBBS_BOOTSTRAP_INSTALLER_URL:-https://raw.githubusercontent.com/Awassee/wolfbbs/main/install.sh}"
-TMP_DIR="$(mktemp -d "${TMPDIR:-/tmp}/wolfbbs-bootstrap.XXXXXX")"
-INSTALLER_PATH="${TMP_DIR}/install.sh"
+# Pinned local bootstrap: runs the install.sh that sits next to this file
+# instead of downloading the latest one from GitHub.
+# Upstream original: https://github.com/Awassee/wolfbbs/blob/main/bootstrap.sh
 
-cleanup() {
-  rm -rf "$TMP_DIR"
-}
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+INSTALLER_PATH="${SCRIPT_DIR}/install.sh"
 
-trap cleanup EXIT
-
-if ! command -v curl >/dev/null 2>&1; then
-  echo "WolfBBS bootstrap requires curl."
+if [[ ! -f "$INSTALLER_PATH" ]]; then
+  echo "WolfBBS bootstrap: no install.sh found next to this script (${SCRIPT_DIR})."
   exit 1
 fi
 
-if ! command -v bash >/dev/null 2>&1; then
-  echo "WolfBBS bootstrap requires bash."
-  exit 1
-fi
-
-echo "WolfBBS bootstrap: downloading installer..."
-curl -fsSL "$INSTALLER_URL" -o "$INSTALLER_PATH"
-chmod +x "$INSTALLER_PATH"
-
+echo "WolfBBS bootstrap: using local installer ${INSTALLER_PATH}"
 exec bash "$INSTALLER_PATH" "$@"
