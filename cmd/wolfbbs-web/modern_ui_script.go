@@ -698,12 +698,12 @@ const modernUIScriptTag = `
         '</ul>' +
       '</div>' +
       '<div class="wolfbbs-spatial-shell">' +
-        '<canvas class="wolfbbs-webgl-canvas" aria-label="Interactive WolfBBS preview"></canvas>' +
+        '<canvas class="wolfbbs-webgl-canvas" aria-label="Interactive board preview"></canvas>' +
         '<div class="wolfbbs-spatial-stage">' +
           '<div class="wolfbbs-spatial-terminal">' +
             '<div class="wolfbbs-spatial-terminal-face screen">' +
               '<div class="wolfbbs-spatial-screen-ui">' +
-                '<div class="wolfbbs-spatial-screen-bar"><span>WolfBBS 2026</span><span>Node-ready + live lanes</span></div>' +
+                '<div class="wolfbbs-spatial-screen-bar"><span>Live board</span><span>Node-ready + live lanes</span></div>' +
                 '<div class="wolfbbs-spatial-screen-row">' +
                   '<div class="wolfbbs-spatial-screen-stack">' +
                     '<div class="wolfbbs-spatial-screen-panel"><strong>Today Brief</strong><span>Activity, alerts, and next best moves</span></div>' +
@@ -2588,7 +2588,7 @@ const modernUIScriptTag = `
       .map((row) => "- " + row.key + ": " + row.value)
       .join("\n");
     return [
-      "# WolfBBS UI Handoff",
+      "# UI Handoff",
       "",
       "- Generated: " + new Date().toISOString(),
       "- Route: " + currentRoute,
@@ -4359,7 +4359,7 @@ const modernUIScriptTag = `
   const primerRegistry = {
     "/help": {
       eyebrow: "Start here",
-      title: "Use WolfBBS by intent",
+      title: "Use the board by intent",
       body: "This page is the route map. If you run the board, finish /admin/setup before treating the product as ready. If you are a caller, start with boards, chat, and doors.",
       bullets: [
         "Use /admin/setup before /admin/config when launching a fresh board.",
@@ -6685,7 +6685,7 @@ const modernUIScriptTag = `
 
   const overlay = document.createElement("div");
   overlay.id = "wolfbbsPaletteOverlay";
-  overlay.innerHTML = '<div id="wolfbbsPalette"><div id="wolfbbsPaletteHeader"><label><span id="wolfbbsOmnibarLabel">Omnibar / Ask WolfBBS</span><span class="wolfbbs-omnibar-hint">Try natural prompts like "take me to boards", "open release gate", or "focus mode".</span><input id="wolfbbsPaletteInput" type="search" placeholder="Ask for routes, actions, settings, or sysop tools..." style="width:100%"></label><div id="wolfbbsPaletteHistory" class="wolfbbs-palette-history"></div></div><div id="wolfbbsOmnibarModules" class="wolfbbs-omnibar-module-grid"></div><div id="wolfbbsPaletteList"></div></div>';
+  overlay.innerHTML = '<div id="wolfbbsPalette"><div id="wolfbbsPaletteHeader"><label><span id="wolfbbsOmnibarLabel">Omnibar / Ask the board</span><span class="wolfbbs-omnibar-hint">Try natural prompts like "take me to boards", "open release gate", or "focus mode".</span><input id="wolfbbsPaletteInput" type="search" placeholder="Ask for routes, actions, settings, or sysop tools..." style="width:100%"></label><div id="wolfbbsPaletteHistory" class="wolfbbs-palette-history"></div></div><div id="wolfbbsOmnibarModules" class="wolfbbs-omnibar-module-grid"></div><div id="wolfbbsPaletteList"></div></div>';
   document.body.appendChild(overlay);
 
   const paletteButton = document.createElement("button");

@@ -973,7 +973,7 @@ func (a *webApp) handleMentorship(w http.ResponseWriter, r *http.Request) {
 			}
 			body := strings.TrimSpace(r.FormValue("message"))
 			if body == "" {
-				body = "Hi mentor, can you help me with my next steps on WolfBBS?"
+				body = "Hi mentor, can you help me with my next steps on " + a.siteDisplayName() + "?"
 			}
 			if a.mailRepo != nil {
 				if err := a.mailRepo.CreateMail(&domain.PrivateMail{

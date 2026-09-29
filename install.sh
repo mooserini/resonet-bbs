@@ -12,6 +12,8 @@ DEFAULT_CHECKOUT_SUBDIR="app"
 DEFAULT_REPO_SLUG="Awassee/wolfbbs"
 DEFAULT_REPO_URL="https://github.com/${DEFAULT_REPO_SLUG}.git"
 DEFAULT_BBS_NAME="WolfBBS"
+UPSTREAM_BBS_NAME="WolfBBS"
+UPSTREAM_REPO_SLUG="Awassee/wolfbbs"
 DEFAULT_SETUP_PROFILE="basic"
 
 PREFIX=""
@@ -58,6 +60,18 @@ else
 fi
 LOG_FILE="${SCRIPT_PATH}/install.log"
 WORK_DIR="${SCRIPT_PATH}"
+
+# Public identity (identity.env next to this script). Only public-facing text
+# uses it; WOLFBBS_* settings and Docker names keep WolfBBS as provenance.
+IDENTITY_FILE="${SCRIPT_PATH}/identity.env"
+identity_value() {
+  [[ -f "$IDENTITY_FILE" ]] || return 0
+  awk -F= -v key="$1" '$1 == key {sub(/^[^=]*=/, "", $0); print; exit}' "$IDENTITY_FILE"
+}
+PUBLIC_NAME="$(identity_value BBS_NAME)"
+PUBLIC_NAME="${PUBLIC_NAME:-$UPSTREAM_BBS_NAME}"
+DEFAULT_BBS_NAME="$PUBLIC_NAME"
+BBS_NAME="${WOLFBBS_BBS_NAME:-$DEFAULT_BBS_NAME}"
 PURGE=false
 ENV_FILE=""
 DOCKER_BIN="docker"
@@ -126,6 +140,21 @@ style() {
   else
     printf '%s' "$*"
   fi
+}
+
+box_header() {
+  local title=" ${1:-} "
+  local width=78
+  local left=$(( (width - ${#title}) / 2 ))
+  local right=$(( width - ${#title} - left ))
+  (( left < 1 )) && left=1
+  (( right < 1 )) && right=1
+  local i=0
+  printf '┌'
+  for ((i = 0; i < left; i++)); do printf '─'; done
+  printf '%s' "$title"
+  for ((i = 0; i < right; i++)); do printf '─'; done
+  printf '┐\n'
 }
 
 menu_divider() {
@@ -201,7 +230,9 @@ prompt_default() {
   local label="$1"
   local current_value="$2"
   local reply=""
-  printf '%s [%s]: ' "$label" "$current_value"
+  # Every caller captures stdout with $(...), so the prompt goes to stderr;
+  # otherwise it is swallowed into the answer (install dir, ports, repo...).
+  printf '%s [%s]: ' "$label" "$current_value" >&2
   read -r reply
   reply="$(trim "$reply")"
   if [[ -z "$reply" ]]; then
@@ -344,7 +375,7 @@ show_interactive_troubleshooting_menu() {
       env_hint="${env_hint} (missing)"
     fi
 
-    echo "┌───────────────────── WolfBBS Troubleshooting Center ────────────────────────┐"
+    box_header "${PUBLIC_NAME} Troubleshooting Center"
     menu_line "Guided diagnostics and recovery actions for the current install."
     menu_divider
     menu_line "Prefix   : ${PREFIX}"
@@ -442,7 +473,7 @@ show_interactive_install_plan() {
 
   while true; do
     repo_display="${REPO_URL:-$DEFAULT_REPO_URL}"
-    echo "┌───────────────────── WolfBBS Guided Install Plan ───────────────────────────┐"
+    box_header "${PUBLIC_NAME} Guided Install Plan"
     menu_line "OpenClaw-style flow: quick defaults, plus optional advanced controls."
     menu_divider
     menu_line "Install dir : ${PREFIX}"
@@ -707,7 +738,7 @@ write_launch_brief() {
 
   mkdir -p "$PREFIX"
   cat >"$out_file" <<EOF
-WolfBBS First Steps
+${PUBLIC_NAME} First Steps
 Generated: $(date -u +'%Y-%m-%dT%H:%M:%SZ')
 
 Board:
@@ -844,7 +875,7 @@ run_setup_wizard() {
   setup_profile_candidate="$(normalize_setup_profile "${SETUP_PROFILE:-$DEFAULT_SETUP_PROFILE}")"
 
   echo "┌──────────────────────────────────────────────────────────────┐"
-  echo "│ WolfBBS First-Run Setup Wizard                              │"
+  printf '│ %-60s│\n' "${PUBLIC_NAME} First-Run Setup Wizard"
   echo "│ Bootstrap SYSOP credentials; configure everything else in UI │"
   echo "└──────────────────────────────────────────────────────────────┘"
   echo
@@ -1013,7 +1044,7 @@ print_install_summary() {
   fi
   host="$(resolve_display_host "$host")"
   write_launch_brief "$host" "$bbs_name" "${BOOTSTRAP_ADMIN_HANDLE:-sysop}"
-  echo "WolfBBS installation complete."
+  echo "${PUBLIC_NAME} installation complete."
   echo "BBS: ${bbs_name}"
   echo "Host: ${host}"
   echo "SSH: ssh ${host} -p ${SSH_PORT}"
@@ -1122,12 +1153,12 @@ show_interactive_action_menu() {
 
   if wolfbbs_stack_running; then
     default_choice="9"
-    echo "WolfBBS is already installed and running. Enter shows Status; nothing is changed unless you pick another option."
+    echo "${PUBLIC_NAME} is already installed and running. Enter shows Status; nothing is changed unless you pick another option."
     echo
   fi
 
   while true; do
-    echo "┌──────────────────────── WolfBBS Installer Command Center ───────────────────┐"
+    box_header "${PUBLIC_NAME} Installer Command Center"
     menu_line "Setup and Upgrade"
     menu_line "1) Easy install / first setup        Recommended for first-time operators"
     menu_line "2) Guided install options            Tune install profile and advanced defaults"
@@ -1849,7 +1880,7 @@ check_macos_prereqs() {
   if command -v xcode-select >/dev/null 2>&1 && xcode-select -p >/dev/null 2>&1; then
     return
   fi
-  echo "macOS needs Apple's Command Line Tools before WolfBBS can finish setup."
+  echo "macOS needs Apple's Command Line Tools before ${PUBLIC_NAME} can finish setup."
   if ! command -v xcode-select >/dev/null 2>&1; then
     echo "Please install them with:"
     echo "  xcode-select --install"
@@ -2320,7 +2351,7 @@ prompt_macos_docker_setup_choice() {
 
   while true; do
     echo "Docker is missing on macOS."
-    echo "Choose how you want WolfBBS to set up the container runtime:"
+    echo "Choose how you want ${PUBLIC_NAME} to set up the container runtime:"
     echo "  1) Recommended: install Colima stack (docker + colima)"
     echo "  2) Install Docker Desktop via Homebrew cask"
     echo "  3) Show manual steps and exit"
@@ -2693,6 +2724,7 @@ ensure_runtime_env_defaults() {
   chmod 600 "$snapshot"
   cp -p "$file_path" "$snapshot"
 
+  append_env_value_if_missing "$file_path" "WOLFBBS_BBS_NAME" "$(quote_env_literal "${PUBLIC_NAME}")"
   append_env_value_if_missing "$file_path" "WOLFBBS_INSTALL_PREFIX" "$(quote_env_literal "${PREFIX}")"
   append_env_value_if_missing "$file_path" "WOLFBBS_INSTALL_WORKDIR" "$(quote_env_literal "${install_workdir}")"
   upsert_env_value "$file_path" "WOLFBBS_DOCKER_SOCKET" "$(quote_env_literal "${docker_socket}")"
@@ -3168,7 +3200,7 @@ status_view() {
     echo "No install found in ${PREFIX}. Missing ${ENV_FILE}."
     exit 1
   fi
-  echo "WolfBBS install status: ${PREFIX}"
+  echo "${PUBLIC_NAME} install status: ${PREFIX}"
   # shellcheck disable=SC1090
   . "$ENV_FILE"
   local status_host="${WOLFBBS_HOSTNAME:-localhost}"
@@ -3355,7 +3387,7 @@ status_view() {
     [[ -f "${docs_root}/TROUBLESHOOTING.md" ]] && echo "  - ${docs_root}/TROUBLESHOOTING.md"
     [[ -f "${docs_root}/OPERATIONS.md" ]] && echo "  - ${docs_root}/OPERATIONS.md"
   fi
-  snapshot="WolfBBS Service Status
+  snapshot="${PUBLIC_NAME} Service Status
 Generated: $(date -u +'%Y-%m-%dT%H:%M:%SZ')
 Verdict: ${verdict}
 Pass: ${pass_count}
@@ -3433,7 +3465,7 @@ doctor_report() {
   local warnings=()
   local docs_root=""
 
-  echo "WolfBBS doctor report"
+  echo "${PUBLIC_NAME} doctor report"
   echo "  os=${OS} distro=${DISTRO} arch=${ARCH} pkg=${PKG_MGR:-none}"
   echo "  prefix=${PREFIX}"
   docs_root="$(docs_root_path || true)"
@@ -3801,7 +3833,7 @@ port_audit() {
     fi
   fi
 
-  echo "WolfBBS port audit"
+  echo "${PUBLIC_NAME} port audit"
   echo "  prefix=${PREFIX}"
   echo "  compose=${compose_file:-not detected}"
   echo "  env=${ENV_FILE:-not found}"
@@ -3908,7 +3940,7 @@ debug_bundle_report() {
   fi
 
   {
-    echo "WolfBBS Diagnostics Bundle"
+    echo "${PUBLIC_NAME} Diagnostics Bundle"
     echo "Generated: $(date -u +'%Y-%m-%dT%H:%M:%SZ')"
     echo "OS: ${OS}"
     echo "Distro: ${DISTRO}"
@@ -4192,6 +4224,55 @@ parse_args() {
   done
 }
 
+# A fork that still calls itself WolfBBS confuses visitors about which board
+# they're on. Ask once for a public name and save it in identity.env.
+check_fork_identity() {
+  local name=""
+  local origin=""
+  local slug=""
+  local chosen=""
+  [[ -f "$IDENTITY_FILE" ]] || return 0
+  name="$(identity_value BBS_NAME)"
+  if [[ -n "$name" && "$name" != "$UPSTREAM_BBS_NAME" ]]; then
+    return 0
+  fi
+  if has_working_git; then
+    origin="$(git -C "$SCRIPT_PATH" remote get-url origin 2>/dev/null || true)"
+  fi
+  slug="$(repo_slug_from_url "$origin" 2>/dev/null || true)"
+  if [[ -z "$slug" ]] || [[ "$(printf '%s' "$slug" | tr '[:upper:]' '[:lower:]')" == "$(printf '%s' "$UPSTREAM_REPO_SLUG" | tr '[:upper:]' '[:lower:]')" ]]; then
+    return 0
+  fi
+  echo "This checkout is a fork (${slug}) but still calls itself ${UPSTREAM_BBS_NAME}."
+  echo "Give it its own public name so visitors know whose board they're on."
+  echo "Internals (WOLFBBS_* settings, Docker names) keep the WolfBBS name as provenance."
+  if [[ "$NON_INTERACTIVE" == "true" || ! -t 0 || ! -t 1 ]]; then
+    echo "Set BBS_NAME in ${IDENTITY_FILE} to choose one."
+    echo
+    return 0
+  fi
+  chosen="$(prompt_default "Public name for this BBS (Enter to decide later)" "")"
+  chosen="$(trim "$chosen")"
+  if [[ -z "$chosen" ]]; then
+    echo "Keeping ${UPSTREAM_BBS_NAME} for now."
+    echo
+    return 0
+  fi
+  if [[ "$DRY_RUN" == "true" ]]; then
+    log "DRY-RUN: would set BBS_NAME=${chosen} and BBS_REPO=${slug} in ${IDENTITY_FILE}"
+    return 0
+  fi
+  upsert_env_value "$IDENTITY_FILE" "BBS_NAME" "$chosen"
+  upsert_env_value "$IDENTITY_FILE" "BBS_REPO" "$slug"
+  PUBLIC_NAME="$chosen"
+  DEFAULT_BBS_NAME="$chosen"
+  if [[ -z "${WOLFBBS_BBS_NAME:-}" ]]; then
+    BBS_NAME="$chosen"
+  fi
+  echo "Saved to ${IDENTITY_FILE}. Commit it so your fork keeps its name."
+  echo
+}
+
 validate_action_flags() {
   local action_count=0
   local all_actions=(
@@ -4226,6 +4307,9 @@ main() {
   local args_count=$#
   parse_args "$@"
   resolve_repo_url
+  if [[ "$args_count" -eq 0 ]] || ! action_selected; then
+    check_fork_identity
+  fi
   detect_platform
   detect_arch
   set_default_prefix
@@ -4238,7 +4322,7 @@ main() {
 
   if [[ "$USED_INSTALLER_CONFIG_FLAGS" == "true" ]]; then
     echo "Note: install-time identity/profile flags are supported for automation."
-    echo "Recommended path is to configure WolfBBS in the UI at /admin/setup and /admin/config."
+    echo "Recommended path is to configure ${PUBLIC_NAME} in the UI at /admin/setup and /admin/config."
     echo
   fi
 
@@ -4264,7 +4348,7 @@ main() {
 
   ensure_rootless_permissions
 
-  announce_stage "Checking installer dependencies" "Making sure WolfBBS has the local tools it needs."
+  announce_stage "Checking installer dependencies" "Making sure ${PUBLIC_NAME} has the local tools it needs."
   ensure_base_prereqs
 
   if [[ "$DEPS_ONLY" == "true" ]]; then
@@ -4388,7 +4472,7 @@ main() {
       can_use_compose=true
     fi
     if [[ "$DRY_RUN" == "false" ]]; then
-      if ! confirm "Stop WolfBBS services from ${PREFIX}?"; then
+      if ! confirm "Stop ${PUBLIC_NAME} services from ${PREFIX}?"; then
         echo "Aborted."
         exit 0
       fi
@@ -4399,7 +4483,7 @@ main() {
         docker_cleanup_without_compose false
       fi
       if { [[ "$PURGE" == "true" ]] || confirm "Also remove volumes and all installed data?"; } &&
-        confirm_destructive "Delete WolfBBS data volumes, including the Postgres database (users, boards, messages)."; then
+        confirm_destructive "Delete ${PUBLIC_NAME} data volumes, including the Postgres database (users, boards, messages)."; then
         if [[ "$can_use_compose" == "true" ]]; then
           docker_compose_down_purge || true
         else
@@ -4480,7 +4564,7 @@ main() {
   fi
   announce_stage "Checking network ports" "Making sure SSH, web, IRC, and mail ingest can start cleanly."
   require_ports_free SSH_PORT WEB_PORT IRC_PORT IRC_TLS_PORT MAILIN_PORT
-  announce_stage "Preparing WolfBBS app files" "Resolving the compose stack and managed app directory."
+  announce_stage "Preparing ${PUBLIC_NAME} app files" "Resolving the compose stack and managed app directory."
   ensure_compose_file
   init_install_dir
 
@@ -4507,7 +4591,7 @@ main() {
   announce_stage "Writing runtime configuration" "Saving ports, secrets, and the bootstrap SYSOP account."
   write_env_file
   seed_admin_check
-  announce_stage "Starting WolfBBS services" "Building images and bringing the board online."
+  announce_stage "Starting ${PUBLIC_NAME} services" "Building images and bringing the board online."
   docker_compose_up
   announce_stage "Checking service health" "Verifying web, SSH, IRC, and mail ingest are reachable."
   verify_install

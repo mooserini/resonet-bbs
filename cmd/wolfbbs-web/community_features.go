@@ -1308,7 +1308,7 @@ func validateBackupArtifact(path, kind string, info os.FileInfo) (string, string
 	switch kind {
 	case "service_snapshot":
 		snippet := loadFileSnippet(path, 8192)
-		if !strings.Contains(snippet, "WolfBBS Service Status") {
+		if !strings.Contains(snippet, "Service Status") {
 			return "warn", "missing service status header"
 		}
 		return "ok", "service snapshot looks valid"

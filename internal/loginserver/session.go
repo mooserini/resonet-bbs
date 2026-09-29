@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"io"
 	"log/slog"
+	"os"
 	"strings"
 	"time"
 
@@ -48,7 +49,7 @@ func runLoginSession(transport string, peer textPeer, authSvc *auth.Service, nod
 		logger.Info("login transport session disconnected", "transport", transport, "session_id", sessionID, "remote_host", remoteHost, "remote_origin", remoteOrigin)
 	}()
 
-	_ = peer.WriteLine("WolfBBS " + strings.ToUpper(transport) + " Access")
+	_ = peer.WriteLine(publicBBSName() + " " + strings.ToUpper(transport) + " Access")
 	_ = peer.WriteLine(fmt.Sprintf("Connected on Node #%d", node.NodeID))
 	_ = peer.WriteLine("Command-mode transport with feature modules for boards/mail/chat/gateway/settings.")
 	switch strings.ToLower(strings.TrimSpace(transport)) {
@@ -232,4 +233,13 @@ func normalizeRemoteHost(remoteAddr string) string {
 		return "unknown"
 	}
 	return host
+}
+
+// publicBBSName is the board's public name for login banners; WolfBBS is only
+// the fallback when WOLFBBS_BBS_NAME is not configured.
+func publicBBSName() string {
+	if name := strings.TrimSpace(os.Getenv("WOLFBBS_BBS_NAME")); name != "" {
+		return name
+	}
+	return "WolfBBS"
 }

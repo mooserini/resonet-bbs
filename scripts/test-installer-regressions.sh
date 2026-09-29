@@ -415,6 +415,13 @@ EOF
 
   run_installer_case "$installer_dir" "$fake_bin" "$docker_log" "$curl_log" "$nc_log" "$colima_log" "$out_file" \
     --yes --uninstall --purge --prefix "$prefix_rapid"
+  assert_not_contains "$out_file" "down -v --remove-orphans" \
+    "--yes alone must not delete volumes without --i-understand-data-loss"
+  assert_contains "$out_file" "Refusing in non-interactive mode" \
+    "--yes --purge should explain why volumes were kept"
+
+  run_installer_case "$installer_dir" "$fake_bin" "$docker_log" "$curl_log" "$nc_log" "$colima_log" "$out_file" \
+    --yes --uninstall --purge --i-understand-data-loss --prefix "$prefix_rapid"
   assert_contains "$out_file" "down -v --remove-orphans" \
     "uninstall --purge should include volume removal"
   assert_not_contains "$out_file" "--env-file \"\"" \
@@ -500,7 +507,7 @@ EOF
   local prefix_clean_resolved
   prefix_clean_resolved="$(cd "${prefix_clean}" && pwd)"
   run_installer_case "$installer_dir" "$fake_bin" "$docker_log" "$curl_log" "$nc_log" "$colima_log" "$out_file" \
-    --yes --uninstall --clean-uninstall --prefix "$prefix_clean"
+    --yes --uninstall --clean-uninstall --i-understand-data-loss --prefix "$prefix_clean"
   assert_contains "$out_file" "Removed ${prefix_clean_resolved}." \
     "clean uninstall should remove install directory"
   if [[ -d "$prefix_clean" ]]; then

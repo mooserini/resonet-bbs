@@ -52,6 +52,15 @@ type ircClient struct {
 
 const serverName = "wolfbbs"
 
+// networkName is the public board name shown to IRC users; the server and
+// software names above stay "wolfbbs" as provenance.
+func networkName() string {
+	if name := strings.TrimSpace(os.Getenv("WOLFBBS_BBS_NAME")); name != "" {
+		return name
+	}
+	return "WolfBBS"
+}
+
 var (
 	// ircVersion is overridden in CI/release builds via -ldflags -X main.ircVersion=...
 	ircVersion    = "1.0.0"
@@ -258,11 +267,11 @@ func handleIRCConn(conn net.Conn, svc *chat.Service, authSvc *auth.Service, ip s
 		linePoll: linePoll,
 	}
 
-	_ = replyfConn(client, ":%s 001 * :Welcome to WolfBBS IRC", serverName)
+	_ = replyfConn(client, ":%s 001 * :Welcome to %s IRC", serverName, networkName())
 	_ = replyfConn(client, ":%s 002 * :Your host is WolfBBS-IRCd", serverName)
 	_ = replyfConn(client, ":%s 003 * :This server accepts BBS accounts", serverName)
 	_ = replyfConn(client, ":%s 004 * WolfBBS "+ircVersion+" i", serverName)
-	_ = replyfConn(client, ":%s 375 * :- WolfBBS Message of the day", serverName)
+	_ = replyfConn(client, ":%s 375 * :- %s Message of the day", serverName, networkName())
 	_ = replyfConn(client, ":%s 372 * :- Authenticate with PASS, NICK, USER then join a channel", serverName)
 	_ = replyfConn(client, ":%s 376 * :End of /MOTD command", serverName)
 
@@ -472,7 +481,7 @@ func handleIRCConn(conn net.Conn, svc *chat.Service, authSvc *auth.Service, ip s
 			members := channelMembers(channel)
 			_ = replyfConn(client, ":%s 353 %s = %s :%s", serverName, nickOrStar(state.nick), channel, strings.Join(members, " "))
 			_ = replyfConn(client, ":%s 366 %s %s :End of /NAMES list", serverName, nickOrStar(state.nick), channel)
-			_ = replyfConn(client, ":%s 332 %s %s :WolfBBS channel topic", serverName, nickOrStar(state.nick), channel)
+			_ = replyfConn(client, ":%s 332 %s %s :%s channel topic", serverName, nickOrStar(state.nick), channel, networkName())
 		case "PART":
 			channel := strings.TrimSpace(raw)
 			if channel == "" {
@@ -547,7 +556,7 @@ func handleIRCConn(conn net.Conn, svc *chat.Service, authSvc *auth.Service, ip s
 			_ = replyfConn(client, ":%s 366 %s %s :End of /NAMES list", serverName, nickOrStar(state.nick), channel)
 		case "LIST":
 			for _, channel := range svc.ListChannels() {
-				_ = replyfConn(client, ":%s 322 %s %s 0 :WolfBBS channel", serverName, nickOrStar(state.nick), channel)
+				_ = replyfConn(client, ":%s 322 %s %s 0 :%s channel", serverName, nickOrStar(state.nick), channel, networkName())
 			}
 			_ = replyfConn(client, ":%s 323 %s :End of /LIST", serverName, nickOrStar(state.nick))
 		case "WHO":
@@ -592,7 +601,7 @@ func handleIRCConn(conn net.Conn, svc *chat.Service, authSvc *auth.Service, ip s
 				continue
 			}
 			channel = chat.NormalizeChannel(channel)
-			_ = replyfConn(client, ":%s 332 %s %s :WolfBBS channel topic", serverName, nickOrStar(state.nick), channel)
+			_ = replyfConn(client, ":%s 332 %s %s :%s channel topic", serverName, nickOrStar(state.nick), channel, networkName())
 		case "MODE":
 			channel := strings.Trim(raw, " ")
 			if channel == "" {
@@ -687,7 +696,7 @@ func completeRegistration(client *ircClient) {
 		clientsByNick[strings.ToLower(client.nick)] = client
 	}
 	clientsMu.Unlock()
-	_ = replyfConn(client, ":%s 001 %s :Welcome to WolfBBS IRC, %s", serverName, nickOrStar(state.nick), state.nick)
+	_ = replyfConn(client, ":%s 001 %s :Welcome to %s IRC, %s", serverName, nickOrStar(state.nick), networkName(), state.nick)
 	_ = replyfConn(client, ":%s 002 %s :Your host is WolfBBS-IRCd", serverName, nickOrStar(state.nick))
 	_ = replyfConn(client, ":%s 003 %s :This server accepts BBS accounts", serverName, nickOrStar(state.nick))
 	_ = replyfConn(client, ":%s 004 %s WolfBBS "+ircVersion+" i", serverName, nickOrStar(state.nick))
@@ -879,7 +888,7 @@ func writeWhois(client *ircClient, target string) bool {
 	requester := nickOrStar(client.state.nick)
 	realName := strings.TrimSpace(snapshot.realName)
 	if realName == "" {
-		realName = "WolfBBS user"
+		realName = networkName() + " user"
 	}
 	username := strings.TrimSpace(snapshot.user)
 	if username == "" {
