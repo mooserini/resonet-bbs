@@ -1,4 +1,30 @@
-# WolfBBS
+# ResoNET BBS
+
+ResoNET BBS is the community board of the Resonant Mirror world, live at [reso.getadongle.com](https://reso.getadongle.com). It is a fork of [WolfBBS](https://github.com/Awassee/wolfbbs) by Sean Heiney, and keeps WolfBBS's SSH-first ANSI board, web companion, IRC bridge and doors underneath its own identity.
+
+## Running this fork
+
+This fork's bootstrap runs the `install.sh` next to it, not upstream's. Clone this repo, then:
+
+```bash
+bash bootstrap.sh
+```
+
+Safe any time: `--status`, `--doctor`, `--logs`, `--dry-run`, `--start`, `--restart`, `--repair`. Destructive steps (overwriting `.env`, deleting data, removing the install folder) require typing `WIPE`. See [docs/INSTALL.md](docs/INSTALL.md) for Cloudflare Tunnel, email, and network notes.
+
+## Forking this fork
+
+Everything the public sees is named in [`identity.env`](identity.env). Change `BBS_NAME` and `BBS_REPO` there first, or run `bash bootstrap.sh`: on a fork that still calls itself WolfBBS, it asks for a name before anything else. The live board name can be changed later in `/admin/config`.
+
+Internals keep the WolfBBS name on purpose, for provenance: the `WOLFBBS_*` settings, the `wolfbbs` Docker project and database volume, the binaries, and the Go module.
+
+## About the name
+
+WolfBBS is Sean Heiney's project, MIT licensed. This fork keeps the original copyright notice in [LICENSE](LICENSE) and credits WolfBBS wherever the software itself is described. The rest of this README is WolfBBS's own documentation. Its one-line `curl` installers point at upstream WolfBBS, not at this fork.
+
+---
+
+## WolfBBS, the software underneath
 
 WolfBBS is a self-hosted, SSH-first bulletin board system with a Wildcat-style ANSI experience, modern web companion, IRC bridge, doors, file areas, and turnkey installation.
 

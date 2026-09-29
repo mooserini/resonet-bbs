@@ -411,7 +411,7 @@ esac
 			Body: "# " + id + " starter\n\n" +
 				"1. Update `manifest.json` capabilities and entrypoint path.\n" +
 				"2. Implement your handler logic in `entrypoint.sh`.\n" +
-				"3. Validate + save the manifest in WolfBBS at `/admin/plugins`.\n" +
+				"3. Validate + save the manifest on this board at `/admin/plugins`.\n" +
 				"4. Keep sandbox profile explicit and least-privilege.\n",
 		},
 	}

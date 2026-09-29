@@ -314,6 +314,10 @@ Important generated values include:
 - `WOLFBBS_BIND_ADDR` (optional, default `127.0.0.1`), `WOLFBBS_ENABLE_APP_UPGRADE` (optional, default off)
 - `WOLFBBS_APP_UPGRADE_COMMAND`, `WOLFBBS_APP_UPGRADE_WORKDIR`, `WOLFBBS_APP_UPGRADE_TIMEOUT_SECONDS`
 
+## Fork Identity
+
+`identity.env` at the repo root holds the public name (`BBS_NAME`) and repo (`BBS_REPO`) of this fork. The installer uses it for its banners, first-steps file and the default `WOLFBBS_BBS_NAME`, and the web, SSH, IRC and login services fall back to it when no name is set in `/admin/config`. On a fork whose `identity.env` still says WolfBBS, a bare `bash bootstrap.sh` asks for a new name and saves it. Internal names (`WOLFBBS_*` settings, the `wolfbbs` Docker project and volume, binaries) intentionally stay WolfBBS.
+
 ## Network Exposure, Restarts, and In-BBS Upgrades
 
 Published ports bind to `127.0.0.1` by default (`WOLFBBS_BIND_ADDR`). That suits a reverse proxy or tunnel on the

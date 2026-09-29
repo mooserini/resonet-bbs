@@ -973,11 +973,7 @@ func main() {
 			return dir
 		}(),
 		siteName: func() string {
-			name := strings.TrimSpace(os.Getenv("WOLFBBS_BBS_NAME"))
-			if name == "" {
-				name = "WolfBBS"
-			}
-			return name
+			return defaultSiteName()
 		}(),
 		siteHostname: func() string {
 			host := strings.TrimSpace(os.Getenv("WOLFBBS_HOSTNAME"))
@@ -1764,7 +1760,7 @@ func (a *webApp) sendWeeklyDigestMail(user *domain.User, pref digestPreferences,
 		events = a.upcomingCommunityEvents(4, now)
 	}
 	lines := []string{
-		"Weekly WolfBBS digest",
+		"Weekly " + a.siteDisplayName() + " digest",
 		"",
 		"Direct follow-up:",
 	}
@@ -5416,7 +5412,7 @@ func injectModernUI(page string) string {
 	}
 	headInject := ""
 	if !strings.Contains(lower, "<title") {
-		headInject += `<title>WolfBBS</title>`
+		headInject += `<title>` + htmlEscape(defaultSiteName()) + `</title>`
 	}
 	if !strings.Contains(lower, `name="viewport"`) {
 		headInject += `<meta name="viewport" content="width=device-width, initial-scale=1">`
@@ -10592,7 +10588,7 @@ func (a *webApp) handleAdminSetup(w http.ResponseWriter, r *http.Request) {
 			siteName := strings.TrimSpace(r.FormValue("site_name"))
 			siteHost := strings.TrimSpace(r.FormValue("site_hostname"))
 			if siteName == "" {
-				siteName = "WolfBBS"
+				siteName = defaultSiteName()
 			}
 			if siteHost == "" {
 				siteHost = "localhost"
@@ -10835,7 +10831,7 @@ func (a *webApp) handleAdminConfig(w http.ResponseWriter, r *http.Request) {
 			siteName := strings.TrimSpace(r.FormValue("site_name"))
 			siteHost := strings.TrimSpace(r.FormValue("site_hostname"))
 			if siteName == "" {
-				siteName = "WolfBBS"
+				siteName = defaultSiteName()
 			}
 			if siteHost == "" {
 				siteHost = "localhost"
@@ -11231,7 +11227,7 @@ func (a *webApp) handleAdminUsers(w http.ResponseWriter, r *http.Request) {
 		}
 		return `search "` + filter + `"`
 	}()})
-	helperBlock := `<section class="wolfbbs-helper-grid"><article class="wolfbbs-helper-card"><strong>Create callers fast</strong><p>If you leave password blank, WolfBBS generates one so you can hand off access quickly.</p></article><article class="wolfbbs-helper-card"><strong>Be deliberate with bans and resets</strong><p>User actions below now require confirmation to reduce accidental admin mistakes.</p></article><article class="wolfbbs-helper-card"><strong>Validate with a real account</strong><p>After creating a user, sign in with it and walk boards, chat, doors, and mail.</p></article></section>`
+	helperBlock := `<section class="wolfbbs-helper-grid"><article class="wolfbbs-helper-card"><strong>Create callers fast</strong><p>If you leave password blank, the board generates one so you can hand off access quickly.</p></article><article class="wolfbbs-helper-card"><strong>Be deliberate with bans and resets</strong><p>User actions below now require confirmation to reduce accidental admin mistakes.</p></article><article class="wolfbbs-helper-card"><strong>Validate with a real account</strong><p>After creating a user, sign in with it and walk boards, chat, doors, and mail.</p></article></section>`
 
 	page := `<html><body><h1>Sysop Users</h1><p><a href="/admin">back</a> | <a href="/admin/audit">audit</a> | <a href="/help">help</a></p>` +
 		messageBlock +
@@ -16527,11 +16523,11 @@ func remoteHostDisplay(remoteAddr string) string {
 
 func (a *webApp) siteDisplayName() string {
 	if a == nil {
-		return "WolfBBS"
+		return defaultSiteName()
 	}
 	name := strings.TrimSpace(a.siteName)
 	if name == "" {
-		name = "WolfBBS"
+		name = defaultSiteName()
 	}
 	return name
 }
@@ -19541,7 +19537,7 @@ func normalizeMailTemplate(value string) string {
 func mailTemplatePrefill(template string) (string, string) {
 	switch normalizeMailTemplate(template) {
 	case "short_note":
-		return "Quick note from WolfBBS", "Checking in from the board.\n\n"
+		return "Quick note from " + defaultSiteName(), "Checking in from the board.\n\n"
 	case "door_invite":
 		return "Meet me in the Door Hub", "I found a good door run. Meet me in /doors and we can compare scores.\n\n"
 	case "follow_up":
@@ -19740,7 +19736,7 @@ func writeJSON(w http.ResponseWriter, status int, body interface{}) error {
 func loginPage(siteName, path string, showConnect bool, showTour bool) string {
 	siteName = strings.TrimSpace(siteName)
 	if siteName == "" {
-		siteName = "WolfBBS"
+		siteName = defaultSiteName()
 	}
 	title := htmlEscape(siteName)
 	extra := strings.Builder{}
@@ -19771,7 +19767,7 @@ func loginPage(siteName, path string, showConnect bool, showTour bool) string {
 func resetRequestPage(siteName, message string) string {
 	siteName = strings.TrimSpace(siteName)
 	if siteName == "" {
-		siteName = "WolfBBS"
+		siteName = defaultSiteName()
 	}
 	title := htmlEscape(siteName)
 	if strings.TrimSpace(message) != "" {
@@ -19792,7 +19788,7 @@ func resetRequestPage(siteName, message string) string {
 func resetCompletePage(siteName, token, message string) string {
 	siteName = strings.TrimSpace(siteName)
 	if siteName == "" {
-		siteName = "WolfBBS"
+		siteName = defaultSiteName()
 	}
 	title := htmlEscape(siteName)
 	token = htmlEscape(strings.TrimSpace(token))
