@@ -173,8 +173,15 @@ func (a *webApp) renderAdminConfigPage(w http.ResponseWriter, r *http.Request, s
 	}
 
 	csrf := a.csrfHiddenInput(r)
+	readOnlyBanner := ""
+	if a.readOnly {
+		readOnlyBanner = `<section class="wolfbbs-callout"><h2>Read-only mode is on</h2><p>Every admin save is blocked until it's turned off, including the forms below.</p>` +
+			`<form method="POST"><input type="hidden" name="action" value="exit_read_only">` + csrf +
+			`<button type="submit">Turn off read-only mode</button></form></section>`
+	}
 	configHelperBlock := `<section class="wolfbbs-helper-grid"><article class="wolfbbs-helper-card"><strong>Use setup first</strong><p>Identity and baseline safety belong in /admin/setup before deeper runtime changes here.</p></article><article class="wolfbbs-helper-card"><strong>Treat transport changes carefully</strong><p>Listener, proxy, and exposure changes should be followed by a status check and a real caller walk-through.</p></article><article class="wolfbbs-helper-card"><strong>Menu editor is live config</strong><p>The ANSI menu file editor below saves runtime menu sources. Drafts are stored locally while you type.</p></article></section>`
 	page := `<!doctype html><html lang="en"><head><meta charset="utf-8"><title>Runtime Configuration</title></head><body><h1>Runtime Configuration</h1><p><a href="/admin">back</a> | <a href="/admin/setup">setup</a> | <a href="/help">help</a></p>` +
+		readOnlyBanner +
 		`<p>These values are persisted in system settings and applied on service startup. Environment values remain fallback defaults.</p>` +
 		configHelperBlock +
 		`<h2>Basic: Identity</h2><form method="POST">` + csrf +

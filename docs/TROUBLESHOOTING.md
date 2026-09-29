@@ -56,6 +56,19 @@ Useful generated files:
 - fix blockers first
 - if warnings are intentional, document them before launch
 
+### Admin saves fail with "read-only mode"
+
+Read-only maintenance mode blocks every admin save. Open `/admin/config` as a sysop and press **Turn off read-only mode** in the banner at the top.
+
+On older builds without that button, or if the web UI is down, turn it off in the database and restart the web service, which only reads settings at startup:
+
+```bash
+docker exec wolfbbs-postgres-1 psql -U wolfbbs -d wolfbbs -c "update system_settings set value='false', updated_at=now() where key='site.read_only'"
+docker restart wolfbbs-web-1
+```
+
+The first command should print `UPDATE 1`. If you changed `POSTGRES_USER` or `POSTGRES_DB`, use those values.
+
 ### Docker or Compose looks broken
 
 - make sure Docker is installed
