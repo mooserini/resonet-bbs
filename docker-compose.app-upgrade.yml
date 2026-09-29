@@ -1,0 +1,16 @@
+# Opt-in: lets a sysop run "/app upgrade" from inside the SSH BBS.
+#
+# This hands the bbs container the Docker socket plus read-write access to the
+# app checkout and the install prefix (which holds .env). Anyone who controls
+# the bbs container can then control Docker, and through Docker Desktop's file
+# sharing, read and write your home folder. Leave it off unless you need it.
+#
+# Enable: set WOLFBBS_ENABLE_APP_UPGRADE=true in <prefix>/.env and run
+#   bash install.sh --restart
+# The installer then passes this file alongside docker-compose.yml.
+services:
+  bbs:
+    volumes:
+      - "${WOLFBBS_INSTALL_WORKDIR:-.}:/wolfbbs-host:rw"
+      - "${WOLFBBS_INSTALL_PREFIX:-.}:/wolfbbs-prefix:rw"
+      - "${WOLFBBS_DOCKER_SOCKET:-/var/run/docker.sock}:/var/run/docker.sock"

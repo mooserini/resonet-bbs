@@ -2685,7 +2685,7 @@ ensure_runtime_env_defaults() {
   docker_socket="$(detect_docker_socket_path)"
   app_upgrade_workdir="/wolfbbs-host"
   app_upgrade_timeout="${WOLFBBS_APP_UPGRADE_TIMEOUT_SECONDS:-900}"
-  app_upgrade_command='docker compose -f /wolfbbs-host/docker-compose.yml --env-file /wolfbbs-prefix/.env up -d --build --remove-orphans'
+  app_upgrade_command='docker compose -f /wolfbbs-host/docker-compose.yml -f /wolfbbs-host/docker-compose.app-upgrade.yml --env-file /wolfbbs-prefix/.env up -d --build --remove-orphans'
 
   # Snapshot first so we only leave a backup behind when something changed.
   local snapshot=""
@@ -2814,7 +2814,7 @@ write_env_file() {
   docker_socket="$(detect_docker_socket_path)"
   app_upgrade_workdir="/wolfbbs-host"
   app_upgrade_timeout="${WOLFBBS_APP_UPGRADE_TIMEOUT_SECONDS:-900}"
-  app_upgrade_command='docker compose -f /wolfbbs-host/docker-compose.yml --env-file /wolfbbs-prefix/.env up -d --build --remove-orphans'
+  app_upgrade_command='docker compose -f /wolfbbs-host/docker-compose.yml -f /wolfbbs-host/docker-compose.app-upgrade.yml --env-file /wolfbbs-prefix/.env up -d --build --remove-orphans'
 
   cat > "$ENV_FILE" <<EOF
 # Basic setup profile
@@ -2874,6 +2874,19 @@ EOF
   BOOTSTRAP_ADMIN_PASSWORD="$bootstrap_admin_password"
 }
 
+compose_file_flags() {
+  # docker-compose.app-upgrade.yml (Docker socket for in-BBS "/app upgrade")
+  # is only layered in when the operator opts in via the env file.
+  local flags="-f \"${compose_file}\""
+  local override=""
+  override="$(dirname "$compose_file")/docker-compose.app-upgrade.yml"
+  if [[ -f "$override" && -n "${ENV_FILE:-}" && -f "$ENV_FILE" ]] &&
+    [[ "$(read_env_value "WOLFBBS_ENABLE_APP_UPGRADE" "$ENV_FILE")" == "true" ]]; then
+    flags+=" -f \"${override}\""
+  fi
+  printf '%s' "$flags"
+}
+
 docker_compose_up() {
   if [[ "$DRY_RUN" == "true" ]]; then
     log "DRY-RUN: would start compose services"
@@ -2890,7 +2903,7 @@ docker_compose_up() {
   if [[ -n "${ENV_FILE:-}" && -f "$ENV_FILE" ]]; then
     env_flag=" --env-file \"$ENV_FILE\""
   fi
-  run_retry 3 5 "cd '$WORK_DIR' && $cmd -f \"$compose_file\"${env_flag} up -d --build"
+  run_retry 3 5 "cd '$WORK_DIR' && $cmd $(compose_file_flags)${env_flag} up -d --build"
 }
 
 docker_compose_pull_restart() {
@@ -2909,8 +2922,8 @@ docker_compose_pull_restart() {
   if [[ -n "${ENV_FILE:-}" && -f "$ENV_FILE" ]]; then
     env_flag=" --env-file \"$ENV_FILE\""
   fi
-  run_retry 3 5 "cd '$WORK_DIR' && $cmd -f \"$compose_file\"${env_flag} pull"
-  run_retry 3 5 "cd '$WORK_DIR' && $cmd -f \"$compose_file\"${env_flag} up -d --build --remove-orphans"
+  run_retry 3 5 "cd '$WORK_DIR' && $cmd $(compose_file_flags)${env_flag} pull"
+  run_retry 3 5 "cd '$WORK_DIR' && $cmd $(compose_file_flags)${env_flag} up -d --build --remove-orphans"
 }
 
 docker_compose_rapid_upgrade() {
@@ -2929,7 +2942,7 @@ docker_compose_rapid_upgrade() {
   if [[ -n "${ENV_FILE:-}" && -f "$ENV_FILE" ]]; then
     env_flag=" --env-file \"$ENV_FILE\""
   fi
-  run_retry 3 5 "cd '$WORK_DIR' && $cmd -f \"$compose_file\"${env_flag} up -d --build --remove-orphans"
+  run_retry 3 5 "cd '$WORK_DIR' && $cmd $(compose_file_flags)${env_flag} up -d --build --remove-orphans"
 }
 
 docker_compose_down() {
@@ -2947,7 +2960,7 @@ docker_compose_down() {
   if [[ -n "${ENV_FILE:-}" && -f "$ENV_FILE" ]]; then
     env_flag=" --env-file \"$ENV_FILE\""
   fi
-  run "cd '$WORK_DIR' && $cmd -f \"$compose_file\"${env_flag} down --remove-orphans"
+  run "cd '$WORK_DIR' && $cmd $(compose_file_flags)${env_flag} down --remove-orphans"
 }
 
 docker_compose_down_purge() {
@@ -2965,7 +2978,7 @@ docker_compose_down_purge() {
   if [[ -n "${ENV_FILE:-}" && -f "$ENV_FILE" ]]; then
     env_flag=" --env-file \"$ENV_FILE\""
   fi
-  run "cd '$WORK_DIR' && $cmd -f \"$compose_file\"${env_flag} down -v --remove-orphans"
+  run "cd '$WORK_DIR' && $cmd $(compose_file_flags)${env_flag} down -v --remove-orphans"
 }
 
 docker_compose_status() {
@@ -2976,10 +2989,10 @@ docker_compose_status() {
     return 1
   fi
   if [[ -n "${ENV_FILE:-}" && -f "$ENV_FILE" ]]; then
-    run "$cmd -f '$compose_file' --env-file '$ENV_FILE' ps"
+    run "$cmd $(compose_file_flags) --env-file '$ENV_FILE' ps"
     return
   fi
-  run "$cmd -f '$compose_file' ps"
+  run "$cmd $(compose_file_flags) ps"
 }
 
 docker_compose_start() {
@@ -2998,7 +3011,7 @@ docker_compose_start() {
   if [[ -n "${ENV_FILE:-}" && -f "$ENV_FILE" ]]; then
     env_flag=" --env-file \"$ENV_FILE\""
   fi
-  run "cd '$WORK_DIR' && $cmd -f \"$compose_file\"${env_flag} up -d"
+  run "cd '$WORK_DIR' && $cmd $(compose_file_flags)${env_flag} up -d"
 }
 
 docker_compose_stop() {
@@ -3016,7 +3029,7 @@ docker_compose_stop() {
   if [[ -n "${ENV_FILE:-}" && -f "$ENV_FILE" ]]; then
     env_flag=" --env-file \"$ENV_FILE\""
   fi
-  run "cd '$WORK_DIR' && $cmd -f \"$compose_file\"${env_flag} stop"
+  run "cd '$WORK_DIR' && $cmd $(compose_file_flags)${env_flag} stop"
 }
 
 docker_compose_restart() {
@@ -3034,7 +3047,7 @@ docker_compose_restart() {
   if [[ -n "${ENV_FILE:-}" && -f "$ENV_FILE" ]]; then
     env_flag=" --env-file \"$ENV_FILE\""
   fi
-  run "cd '$WORK_DIR' && $cmd -f \"$compose_file\"${env_flag} restart"
+  run "cd '$WORK_DIR' && $cmd $(compose_file_flags)${env_flag} restart"
 }
 
 docker_compose_logs() {
@@ -3052,7 +3065,7 @@ docker_compose_logs() {
   if [[ -n "${ENV_FILE:-}" && -f "$ENV_FILE" ]]; then
     env_flag=" --env-file \"$ENV_FILE\""
   fi
-  run "cd '$WORK_DIR' && $cmd -f \"$compose_file\"${env_flag} logs --tail=200"
+  run "cd '$WORK_DIR' && $cmd $(compose_file_flags)${env_flag} logs --tail=200"
 }
 
 seed_admin_check() {
@@ -3201,7 +3214,7 @@ status_view() {
   cmd="$(compose_cmd)"
   if [[ -n "$cmd" ]]; then
     echo "Compose status:"
-    eval "$cmd -f '$compose_file' --env-file '$ENV_FILE' ps" || true
+    eval "$cmd $(compose_file_flags) --env-file '$ENV_FILE' ps" || true
   fi
   echo "Runtime probes:"
   if command -v curl >/dev/null 2>&1; then
@@ -3999,7 +4012,7 @@ debug_bundle_report() {
     fi
 
     if [[ -n "$cmd" && -n "${compose_file:-}" && -f "${compose_file:-}" ]]; then
-      compose_base="$cmd -f \"$compose_file\""
+      compose_base="$cmd $(compose_file_flags)"
       if [[ -n "${ENV_FILE:-}" && -f "$ENV_FILE" ]]; then
         compose_base="${compose_base} --env-file \"$ENV_FILE\""
       fi

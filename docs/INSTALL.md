@@ -311,7 +311,29 @@ Important generated values include:
 - `WOLFBBS_SSH_PORT`, `WOLFBBS_WEB_PORT`, `WOLFBBS_IRC_PORT`, `WOLFBBS_IRC_TLS_PORT`, `WOLFBBS_MAILIN_PORT`
 - `WOLFBBS_BOOTSTRAP_ADMIN_HANDLE`, `WOLFBBS_BOOTSTRAP_ADMIN_PASSWORD`
 - `WOLFBBS_INSTALL_PREFIX`, `WOLFBBS_INSTALL_WORKDIR`, `WOLFBBS_DOCKER_SOCKET`
+- `WOLFBBS_BIND_ADDR` (optional, default `127.0.0.1`), `WOLFBBS_ENABLE_APP_UPGRADE` (optional, default off)
 - `WOLFBBS_APP_UPGRADE_COMMAND`, `WOLFBBS_APP_UPGRADE_WORKDIR`, `WOLFBBS_APP_UPGRADE_TIMEOUT_SECONDS`
+
+## Network Exposure, Restarts, and In-BBS Upgrades
+
+Published ports bind to `127.0.0.1` by default (`WOLFBBS_BIND_ADDR`). That suits a reverse proxy or tunnel on the
+same machine (for example `cloudflared` pointing at `http://localhost:8080`): nothing is reachable from the LAN, so
+nobody can go around the proxy's access controls. To expose ports on every interface again, set
+`WOLFBBS_BIND_ADDR=0.0.0.0` in `<prefix>/.env`. With the tunnel setup, SSH, IRC and mail ingest are then only
+reachable from the host itself unless you route them through the proxy as well.
+
+Every service uses `restart: unless-stopped`, so the stack comes back after a reboot or a Docker restart as long as
+Docker itself starts at login (Docker Desktop: Settings > General > "Start Docker Desktop when you sign in"). On a
+laptop host, also stop the machine from sleeping while it's on power (macOS: `sudo pmset -c sleep 0`).
+
+The in-BBS `/app upgrade` command needs the Docker socket and read-write access to the app checkout and install
+prefix. That means anyone who controls the `bbs` container controls Docker, and on Docker Desktop they can reach every
+shared host folder. So it's off by default. To turn it on, set `WOLFBBS_ENABLE_APP_UPGRADE=true` in
+`<prefix>/.env` and run `bash install.sh --start`. The installer then layers in `docker-compose.app-upgrade.yml`.
+Without it, upgrade from the host with `bash install.sh --rapid-upgrade`.
+
+Changes to the compose files apply on `--start`, `--repair` or `--rapid-upgrade`. `--restart` only restarts the
+existing containers and does not pick up new port bindings or mounts.
 
 ## Post-Install Commands
 
