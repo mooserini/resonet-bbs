@@ -8,6 +8,7 @@ import (
 	"testing"
 	"time"
 
+	"wolfbbs/internal/auth"
 	"wolfbbs/internal/repository"
 )
 
@@ -118,5 +119,48 @@ func TestRecoveryEmailSetWithoutSMTPStaysPending(t *testing.T) {
 	state := app.loadRecoveryEmail("moose")
 	if state.PendingEmail != "moose@gmail.com" || state.verified() {
 		t.Fatalf("expected pending, unverified state, got %+v", state)
+	}
+}
+
+func TestRecoveryEmailConfirmVerifiesAccount(t *testing.T) {
+	authSvc := auth.NewService(repository.NewInMemoryUserRepository())
+	if _, err := authSvc.Register("moose", "password123"); err != nil {
+		t.Fatalf("register: %v", err)
+	}
+	app := newRecoveryEmailTestApp()
+	app.authSvc = authSvc
+	app.persistRecoveryEmail("moose", recoveryEmailState{
+		PendingEmail:   "moose@gmail.com",
+		TokenHash:      hashRecoveryToken("tok"),
+		TokenExpiresAt: time.Now().UTC().Add(time.Hour),
+	})
+	rec := httptest.NewRecorder()
+	app.handleRecoveryEmailConfirm(rec, httptest.NewRequest(http.MethodGet, recoveryEmailConfirmPath+"?handle=moose&token=tok", nil))
+	if rec.Code != http.StatusOK {
+		t.Fatalf("confirm failed: %d", rec.Code)
+	}
+	u, err := authSvc.GetUser("moose")
+	if err != nil || !u.Verified {
+		t.Fatalf("expected account verified after confirmation, got %+v err=%v", u, err)
+	}
+}
+
+func TestBootstrapSysopIsVerified(t *testing.T) {
+	authSvc := auth.NewService(repository.NewInMemoryUserRepository())
+	t.Setenv("WOLFBBS_BOOTSTRAP_ADMIN_HANDLE", "sysop")
+	t.Setenv("WOLFBBS_BOOTSTRAP_ADMIN_PASSWORD", "password123")
+	t.Setenv("WOLFBBS_BOOTSTRAP_USER_HANDLE", "caller")
+	t.Setenv("WOLFBBS_BOOTSTRAP_USER_PASSWORD", "password123")
+	seedWebUsers(authSvc)
+	if u, _ := authSvc.GetUser("sysop"); u == nil || !u.Verified {
+		t.Fatalf("new bootstrap sysop should be verified, got %+v", u)
+	}
+	if u, _ := authSvc.GetUser("caller"); u == nil || u.Verified {
+		t.Fatalf("bootstrap caller must not be auto-verified, got %+v", u)
+	}
+	_ = authSvc.SetVerified("sysop", false)
+	seedWebUsers(authSvc)
+	if u, _ := authSvc.GetUser("sysop"); u == nil || !u.Verified {
+		t.Fatalf("existing bootstrap sysop should be verified on restart, got %+v", u)
 	}
 }

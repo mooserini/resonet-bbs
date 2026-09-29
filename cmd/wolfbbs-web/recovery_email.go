@@ -218,6 +218,13 @@ func (a *webApp) handleRecoveryEmailConfirm(w http.ResponseWriter, r *http.Reque
 	}
 	confirmed := state.PendingEmail
 	a.persistRecoveryEmail(handle, recoveryEmailState{Email: confirmed, VerifiedAt: time.Now().UTC()})
+	// Proving control of an outside mailbox is what "verified" gates on
+	// (external email), so a confirmed recovery email verifies the account.
+	if a.authSvc != nil {
+		if err := a.authSvc.SetVerified(handle, true); err != nil {
+			a.addAppError("recovery_email", fmt.Errorf("mark %s verified: %w", handle, err))
+		}
+	}
 	w.WriteHeader(http.StatusOK)
 	_, _ = w.Write([]byte(`<!doctype html><html lang="en"><head><meta charset="utf-8"><title>` + htmlEscape(title) + `</title></head><body><h1>Recovery email confirmed</h1><p>Password reset links for <strong>` + htmlEscape(handle) + `</strong> will now go to <strong>` + htmlEscape(confirmed) + `</strong>.</p><p><a href="/settings">Back to settings</a></p></body></html>`))
 }

@@ -855,6 +855,11 @@ func seedWebUsers(authSvc *auth.Service) {
 			if existing.Role != entry.role {
 				_ = authSvc.SetRole(entry.handle, entry.role)
 			}
+			// The bootstrap sysop is the operator; without this they are
+			// locked out of external mail until they verify themselves.
+			if entry.role == roleAdmin && !existing.Verified {
+				_ = authSvc.SetVerified(entry.handle, true)
+			}
 			continue
 		}
 		u, err := authSvc.Register(entry.handle, entry.pass)
@@ -863,6 +868,9 @@ func seedWebUsers(authSvc *auth.Service) {
 		}
 		u.Role = entry.role
 		_ = authSvc.SetRole(entry.handle, entry.role)
+		if entry.role == roleAdmin {
+			_ = authSvc.SetVerified(entry.handle, true)
+		}
 	}
 }
 
