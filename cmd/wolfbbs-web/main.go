@@ -1083,6 +1083,7 @@ func main() {
 	http.Handle("/challenges", app.authRequired(http.HandlerFunc(app.handleChallenges)))
 	http.HandleFunc("/connect", app.handleConnect)
 	http.HandleFunc("/tour", app.handleGuestTour)
+	http.Handle("/assets/fonts/", brandAssetHandler())
 	http.HandleFunc("/login", app.handleLogin)
 	http.HandleFunc("/admin/login", app.handleLogin)
 	http.HandleFunc("/help", app.handleHelp)
