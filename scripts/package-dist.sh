@@ -171,7 +171,7 @@ for platform in "${PLATFORMS[@]}"; do
     build_bin "linux" "$arch" "$bundle_root/container-bin/$bin_name" "$pkg"
   done
 
-  cp README.md LICENSE CONTRIBUTING.md SECURITY.md docker-compose.yml .env.example install.sh bootstrap.sh "$bundle_root/"
+  cp README.md LICENSE CONTRIBUTING.md SECURITY.md docker-compose.yml docker-compose.app-upgrade.yml .env.example install.sh bootstrap.sh "$bundle_root/"
   cp Dockerfile.bundle "$bundle_root/Dockerfile"
   for doc in "${doc_list[@]}"; do
     rel="${doc#docs/}"
