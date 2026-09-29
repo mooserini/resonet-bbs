@@ -1095,6 +1095,7 @@ func main() {
 	http.Handle("/mail", app.authRequired(http.HandlerFunc(app.handleMail)))
 	http.Handle("/bookmarks", app.authRequired(http.HandlerFunc(app.handleBookmarks)))
 	http.Handle("/settings", app.authRequired(http.HandlerFunc(app.handleSettings)))
+	http.HandleFunc(recoveryEmailConfirmPath, app.handleRecoveryEmailConfirm)
 	http.Handle("/digest/preferences", app.authRequired(http.HandlerFunc(app.handleDigestPreferences)))
 	http.Handle("/streaks", app.authRequired(http.HandlerFunc(app.handleStreaks)))
 	http.Handle("/next", app.authRequired(http.HandlerFunc(app.handleNextActions)))
@@ -5462,7 +5463,7 @@ func (a *webApp) deliverPasswordReset(r *http.Request, handle, token string) err
 	if emailGateway == nil || !emailGateway.Enabled() {
 		return nil
 	}
-	recipient := passwordResetRecipient(handle)
+	recipient := a.passwordResetRecipientFor(handle)
 	if recipient == "" {
 		return nil
 	}
@@ -9072,6 +9073,13 @@ func (a *webApp) handleSettings(w http.ResponseWriter, r *http.Request) {
 				return
 			}
 			notice = "Password changed."
+		case "set_recovery_email", "remove_recovery_email":
+			msg, err := a.handleRecoveryEmailAction(r, user.Handle, action)
+			if err != nil {
+				redirectWithError(w, r, "/settings", err.Error())
+				return
+			}
+			notice = msg
 		case "update_prefs":
 			theme := strings.TrimSpace(r.FormValue("theme"))
 			if theme == "" {
@@ -9245,6 +9253,7 @@ func (a *webApp) handleSettings(w http.ResponseWriter, r *http.Request) {
 		`<label><input type="checkbox" name="contact_chat" value="1" ` + checkedAttr(containsString(profileSettings.ContactPrefs, "chat")) + `> chat when live is fine</label>` +
 		`</fieldset><button type="submit">Save Profile Card</button></form><p><a href="/directory?handle=` + url.QueryEscape(user.Handle) + `">Preview my caller card</a> | <a href="/profile/export">Export profile JSON</a></p>` +
 		`<h2>Attention Rule Presets</h2><p>` + htmlEscape(currentPresetText) + ` Recommended preset for your role: <strong>` + htmlEscape(recommendedPreset.Label) + `</strong>.</p><section class="wolfbbs-helper-grid">` + presetCards.String() + `</section>` +
+		a.recoveryEmailSettingsBlock(user.Handle, csrf) +
 		`<h2>Password</h2><form method="POST" action="/settings"><input type="hidden" name="action" value="change_password">` + csrf +
 		`<label>New password: <input name="password" type="password"></label><br>` +
 		`<label>Confirm: <input name="confirm" type="password"></label><br><button type="submit">Change password</button></form>` +

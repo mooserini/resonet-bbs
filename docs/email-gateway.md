@@ -47,6 +47,14 @@
   - plus-address mapping support
   - store raw headers/body preview for operator review
 
+## Cloudflare Email Routing (free inbound)
+- `deploy/cloudflare-email-worker/` holds a Worker that turns Email Routing deliveries into `/ingest` calls through a Cloudflare Tunnel, which gives callers receive-only `handle@<board domain>` addresses with no mail server. Setup is in that folder's README.
+
+## Recovery Email
+- Callers add a recovery email in `/settings`. It only counts once they confirm it from the emailed link (`/settings/recovery-email/confirm`, 24-hour single-use token).
+- Password reset links go to the confirmed recovery email first, then to an email-form handle.
+- The board host, its parent domain, and `WOLFBBS_RECOVERY_EMAIL_BLOCKED_DOMAINS` are refused as recovery addresses, and are never used as reset recipients.
+
 ## Admin Controls
 - Global allowlist/denylist
 - Per-user allow/disable outbound

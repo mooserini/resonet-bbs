@@ -1,0 +1,7 @@
+name = "wolfbbs-inbound-mail"
+main = "worker.js"
+compatibility_date = "2026-09-01"
+
+[vars]
+# Public HTTPS URL of wolfbbs-mailin's /ingest, published through your tunnel.
+WOLFBBS_INGEST_URL = "https://mail-in.example.com/ingest"
