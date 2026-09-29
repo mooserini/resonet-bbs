@@ -10805,6 +10805,18 @@ func (a *webApp) handleAdminConfig(w http.ResponseWriter, r *http.Request) {
 	menuBody := ""
 
 	if r.Method == http.MethodPost {
+		// Read-only mode blocks every admin write, so the way out has to be
+		// exempt or the sysop is locked out until someone edits the database.
+		if a.readOnly && strings.EqualFold(strings.TrimSpace(r.FormValue("action")), "exit_read_only") {
+			if !a.requireCSRF(w, r) {
+				return
+			}
+			a.readOnly = false
+			a.persistSystemSetting(sysSettingReadOnly, "false")
+			a.recordAdminAction(user.Handle, "config", "exit_read_only", "read_only=false")
+			http.Redirect(w, r, "/admin/config", http.StatusFound)
+			return
+		}
 		if !a.requireAdminWrite(w, r) {
 			return
 		}
@@ -13294,7 +13306,7 @@ func (a *webApp) requireAdminWrite(w http.ResponseWriter, r *http.Request) bool 
 		return true
 	}
 	if a.readOnly {
-		http.Error(w, "read-only mode", http.StatusForbidden)
+		http.Error(w, "read-only mode: changes are blocked. A sysop can turn it off at /admin/config.", http.StatusForbidden)
 		return false
 	}
 	return a.requireCSRF(w, r)

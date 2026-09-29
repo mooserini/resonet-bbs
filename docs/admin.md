@@ -97,8 +97,10 @@ This version ships a read/write web-first control panel with role-aware routes a
 - AI gateway calls reject private/loopback targets unless `WOLFBBS_GATEWAY_AI_ALLOW_PRIVATE=1` is set intentionally.
 
 ## Read-only Mode Toggle
-- Runtime toggle keeps all mutating writes disabled.
+- Runtime toggle keeps all mutating writes disabled, including admin saves.
 - In read-only mode, destructive operations return 403 with a short reason.
+- To leave read-only mode, open `/admin/config` as a sysop and press **Turn off read-only mode** in the banner at the top. That is the one admin write allowed while read-only is on (it still needs a CSRF token and the admin role), and it is recorded in `/admin/audit` as `exit_read_only`.
+- The setting lives in `system_settings` (`site.read_only`) and overrides `WOLFBBS_READ_ONLY`. See TROUBLESHOOTING.md for recovering from the database if the web UI is unavailable.
 
 ## Implemented Routes
 - `/admin/login`
