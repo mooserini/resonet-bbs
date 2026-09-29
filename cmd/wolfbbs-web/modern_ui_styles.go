@@ -98,6 +98,7 @@ p.wolfbbs-nav-row,body > p:has(> a){
   border-radius:var(--radius-sm);
   box-shadow:var(--shadow-sm);
   backdrop-filter:blur(5px);
+  -webkit-backdrop-filter:blur(5px);
 }
 p.wolfbbs-nav-row a,body > p:has(> a) a{
   display:inline-flex;
@@ -1455,6 +1456,7 @@ form,
 .wolfbbs-kpi-card,
 .wolfbbs-action-card{
   backdrop-filter:blur(3px);
+  -webkit-backdrop-filter:blur(3px);
 }
 .wolfbbs-card{
   border-top:3px solid rgba(10,92,198,.34);
@@ -1562,6 +1564,7 @@ p.wolfbbs-nav-row[data-wolfbbs-nav-level="secondary"],body > p:has(> a)[data-wol
   border:0;
   box-shadow:none;
   backdrop-filter:none;
+  -webkit-backdrop-filter:none;
 }
 p.wolfbbs-nav-row[data-wolfbbs-nav-level="secondary"]::before,body > p:has(> a)[data-wolfbbs-nav-level="secondary"]::before{
   display:none;
@@ -1713,6 +1716,7 @@ p.wolfbbs-nav-row,body > p:has(> a){
   top:10px;
   z-index:34;
   backdrop-filter:saturate(140%) blur(8px);
+  -webkit-backdrop-filter:saturate(140%) blur(8px);
   background:rgba(255,255,255,.88);
   border-color:#c4d3e5;
   box-shadow:0 8px 20px rgba(11,45,91,.11);
@@ -2424,6 +2428,7 @@ body[data-density="compact"] td{
   color:#1f4a78 !important;
   box-shadow:none !important;
   backdrop-filter:none !important;
+  -webkit-backdrop-filter:none !important;
   font-size:.78rem !important;
   font-weight:760 !important;
 }
@@ -4177,7 +4182,10 @@ table.wolfbbs-ux20-freeze-col td:first-child{
     transform:translateY(0);
   }
 }
-:root{
+/* Also scope to body[data-theme-mode] so older per-theme token blocks above cannot leak through. */
+:root,
+body[data-theme-mode]{
+  color-scheme:dark;
   --bg:#080a14;
   --bg-alt:#111525;
   --surface:rgba(12,16,27,.72);
@@ -4405,6 +4413,7 @@ body > p:has(> a){
   background:linear-gradient(180deg,rgba(17,23,38,.82),rgba(9,13,24,.84));
   box-shadow:0 22px 54px rgba(0,0,0,.22);
   backdrop-filter:blur(24px);
+  -webkit-backdrop-filter:blur(24px);
 }
 p.wolfbbs-nav-row a,
 body > p:has(> a) a{
@@ -4762,6 +4771,7 @@ main.wolfbbs-main h3 > .wolfbbs-section-done-toggle{
   color:#ffffff;
   box-shadow:0 30px 72px rgba(7,18,40,.5), inset 0 1px 0 rgba(255,255,255,.24);
   backdrop-filter:blur(18px);
+  -webkit-backdrop-filter:blur(18px);
 }
 #wolfbbsCommandButton.wolfbbs-header-command{
   display:inline-flex;
@@ -4780,6 +4790,7 @@ main.wolfbbs-main h3 > .wolfbbs-section-done-toggle{
   padding:30px 16px;
   background:rgba(5,7,14,.62);
   backdrop-filter:blur(24px);
+  -webkit-backdrop-filter:blur(24px);
 }
 #wolfbbsPalette{
   max-width:1040px;
@@ -5378,5 +5389,125 @@ body[data-route-profile="dense"] .wolfbbs-section-nav-tools > summary{
     animation:none !important;
     transition:none !important;
   }
+}
+/* Cross-browser consistency pass.
+   Safari keeps native appearance for select and search inputs, so it drops the dark
+   background but still applies the light text colour, leaving the text invisible. */
+input[type=text],
+input[type=password],
+input[type=email],
+input[type=number],
+input[type=url],
+input[type=search],
+select,
+textarea{
+  -webkit-appearance:none;
+  appearance:none;
+}
+input[type=search]::-webkit-search-decoration{
+  -webkit-appearance:none;
+}
+/* Many server-rendered inputs omit type=, so they missed the themed control rule above. */
+input:not([type]){
+  -webkit-appearance:none;
+  appearance:none;
+  border-radius:1.2rem;
+  border:1px solid rgba(180,203,255,.18);
+  background:linear-gradient(180deg,rgba(18,24,38,.88),rgba(9,13,24,.82));
+  color:var(--text);
+  box-shadow:inset 0 1px 0 rgba(255,255,255,.08), 0 14px 34px rgba(0,0,0,.24);
+  padding:.55rem .85rem;
+}
+select{
+  padding-right:2.2rem;
+  background-image:
+    url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 12 8'%3E%3Cpath d='M1 1.5l5 5 5-5' fill='none' stroke='%23c9d7f5' stroke-width='1.6' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E"),
+    linear-gradient(180deg,rgba(18,24,38,.88),rgba(9,13,24,.82));
+  background-repeat:no-repeat,no-repeat;
+  background-position:right .85rem center,0 0;
+  background-size:.7rem .5rem,100% 100%;
+}
+select option{
+  background:#111525;
+  color:var(--text);
+}
+/* Light surfaces and dark text left over from earlier light-theme passes. Each selector
+   mirrors the older rule it corrects so the dark glass theme wins on source order. */
+label{
+  color:rgba(233,240,255,.82);
+}
+.wolfbbs-main > section > h2:first-child,
+.wolfbbs-main > article > h2:first-child,
+.wolfbbs-dashboard-card h3{
+  color:var(--text);
+}
+.wolfbbs-goal-head strong,
+.wolfbbs-table-toolbar strong,
+.wolfbbs-form-note strong{
+  color:var(--text);
+}
+.wolfbbs-goal-head span,
+.wolfbbs-goal-list li,
+.wolfbbs-form-note{
+  color:var(--muted);
+}
+.wolfbbs-utility-form{
+  border:1px solid var(--line);
+  background:linear-gradient(180deg,rgba(22,30,47,.78),rgba(8,12,22,.9));
+}
+pre,
+.wolfbbs-dash-chip,
+.wolfbbs-dash-metric,
+.wolfbbs-row-inspector,
+.wolfbbs-meta-list div,
+.wolfbbs-compose-preview,
+.wolfbbs-compose-help,
+.wolfbbs-incident-row,.wolfbbs-playbook-row,.wolfbbs-reminder-row,.wolfbbs-release-gate-row,.wolfbbs-draft-row{
+  border-color:var(--line);
+  background:var(--surface-2);
+  color:var(--text);
+}
+.wolfbbs-reminder-row[data-due="true"]{
+  border-color:rgba(255,198,109,.42);
+  background:rgba(79,61,33,.72);
+}
+.wolfbbs-dash-chip strong,
+.wolfbbs-dash-metric strong,
+.wolfbbs-meta-list dd{
+  color:var(--text);
+}
+.wolfbbs-dash-chip span,
+.wolfbbs-dash-metric label,
+.wolfbbs-meta-list dt{
+  color:var(--muted);
+}
+.wolfbbs-row-inspector dt{
+  color:var(--muted);
+}
+.wolfbbs-row-inspector dd{
+  color:var(--text);
+}
+.wolfbbs-hero-chip[data-kind="caller"]{
+  border-color:#4f7394;
+  background:linear-gradient(180deg,#1f354c,#1a2d40);
+  color:#d7f2ff;
+}
+p.wolfbbs-nav-row[data-wolfbbs-nav-level="secondary"] a,
+body > p:has(> a)[data-wolfbbs-nav-level="secondary"] a{
+  border-color:rgba(195,220,255,.16);
+  background:linear-gradient(180deg,rgba(255,255,255,.11),rgba(255,255,255,.03));
+  color:rgba(244,247,255,.9);
+}
+.wolfbbs-header-command{
+  border-color:rgba(195,220,255,.2) !important;
+  background:linear-gradient(135deg,rgba(73,182,255,.92),rgba(31,100,255,.84) 52%,rgba(255,83,213,.88)) !important;
+  color:#ffffff !important;
+}
+.wolfbbs-header-command:hover{
+  background:linear-gradient(135deg,rgba(103,196,255,.96),rgba(61,124,255,.9) 52%,rgba(255,113,222,.92)) !important;
+}
+body[data-theme-mode="contrast"] .wolfbbs-skip-link,
+body[data-theme-mode="contrast"] .wolfbbs-filter-reset{
+  color:#0f3f76;
 }
 </style>`
