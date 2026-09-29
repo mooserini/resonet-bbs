@@ -1,6 +1,9 @@
 package main
 
 const modernUIStyleTag = `<style id="wolfbbs-modern-ui">
+/* Legacy WolfBBS styles. Layered so the unlayered Resonant Mirror brand
+   styles (brand_styles.go) always win for color and type. */
+@layer wolfbbs-legacy{
 :root{
   --bg:#f5f8fc;
   --bg-alt:#eef4fb;
@@ -1263,7 +1266,7 @@ body.wolfbbs-compose-fullscreen-open{
 #chatStatus{
   margin:0;
   padding:12px 18px 16px;
-  color:#9edfff !important;
+  color:#9edfff;
   font-family:"SFMono-Regular","Menlo","Consolas",monospace;
   font-size:.84rem;
 }
@@ -1357,13 +1360,13 @@ body.wolfbbs-compose-fullscreen-open{
   pointer-events:none;
 }
 #chat{
-  border:1px solid #173d67 !important;
+  border:1px solid #173d67;
   border-radius:var(--radius-sm);
   color:#dce8fb;
   box-shadow:0 16px 32px rgba(8,14,26,.33);
 }
 #chatStatus{
-  color:#22568f !important;
+  color:#22568f;
   font-weight:680;
   margin:10px 0;
 }
@@ -1383,7 +1386,7 @@ body.wolfbbs-compose-fullscreen-open{
   padding:10px 15px;
   border-radius:var(--radius-pill);
   border:1px solid rgba(255,255,255,.42);
-  background:linear-gradient(130deg,#0a66d6,#07469a 58%,#0f9274) !important;
+  background:linear-gradient(130deg,#0a66d6,#07469a 58%,#0f9274);
   box-shadow:0 18px 36px rgba(9,57,122,.26);
 }
 #wolfbbsPaletteOverlay{
@@ -2419,16 +2422,16 @@ body[data-density="compact"] td{
   min-height:26px !important;
   padding:4px 10px !important;
   border-radius:999px !important;
-  border:1px solid #c6d6e8 !important;
-  background:#f7fbff !important;
-  color:#1f4a78 !important;
-  box-shadow:none !important;
+  border:1px solid #c6d6e8;
+  background:#f7fbff;
+  color:#1f4a78;
+  box-shadow:none;
   backdrop-filter:none !important;
   font-size:.78rem !important;
   font-weight:760 !important;
 }
 .wolfbbs-header-command:hover{
-  background:#eaf2fb !important;
+  background:#eaf2fb;
 }
 .wolfbbs-help-copy{
   margin:0;
@@ -2589,7 +2592,7 @@ body.wolfbbs-controls-compact .wolfbbs-pref-menu-note{
   font-size:.72rem;
 }
 .wolfbbs-row-active td{
-  background:#e8f2ff !important;
+  background:#e8f2ff;
 }
 .wolfbbs-row-hit td{
   background:#fff8ea;
@@ -2614,8 +2617,8 @@ body.wolfbbs-controls-compact .wolfbbs-pref-menu-note{
   min-height:30px;
 }
 .wolfbbs-invalid{
-  border-color:#c44a5c !important;
-  box-shadow:0 0 0 3px rgba(185,54,73,.12) !important;
+  border-color:#c44a5c;
+  box-shadow:0 0 0 3px rgba(185,54,73,.12);
 }
 .wolfbbs-field-hint{
   display:block;
@@ -3223,7 +3226,7 @@ body.wolfbbs-focus-ui .wolfbbs-scorecard{
   padding:0 2px;
 }
 .wolfbbs-selected-row td{
-  background:#eaf5ff !important;
+  background:#eaf5ff;
 }
 .wolfbbs-handoff-box{
   margin:8px 0 12px;
@@ -3855,7 +3858,7 @@ button:hover,input[type=submit]:hover,input[type=button]:hover,
   background:rgba(86,68,38,.33);
 }
 #chatStatus{
-  color:#9edfff !important;
+  color:#9edfff;
 }
 #wolfbbsPalette,
 #wolfbbsContextHelpPanel{
@@ -4624,8 +4627,8 @@ main.wolfbbs-main h3 > .wolfbbs-section-done-toggle{
 #wolfbbsFeedbackButton,
 #wolfbbsBackToTop{
   border:1px solid rgba(195,220,255,.16);
-  background:linear-gradient(180deg,rgba(255,255,255,.11),rgba(255,255,255,.03)) !important;
-  color:rgba(244,247,255,.9) !important;
+  background:linear-gradient(180deg,rgba(255,255,255,.11),rgba(255,255,255,.03));
+  color:rgba(244,247,255,.9);
   box-shadow:inset 0 1px 0 rgba(255,255,255,.09), 0 14px 26px rgba(0,0,0,.18);
 }
 .wolfbbs-table-toolbar,
@@ -4650,22 +4653,22 @@ main.wolfbbs-main h3 > .wolfbbs-section-done-toggle{
 #wolfbbsReleaseGatePanel,
 #wolfbbsFeedbackPanel,
 #wolfbbsContextHelpPanel{
-  border:1px solid rgba(185,210,255,.14) !important;
+  border:1px solid rgba(185,210,255,.14);
   background:
-    linear-gradient(180deg,rgba(24,31,48,.82),rgba(8,12,22,.92)) !important;
+    linear-gradient(180deg,rgba(24,31,48,.82),rgba(8,12,22,.92));
   color:var(--text);
   box-shadow:
     inset 0 1px 0 rgba(255,255,255,.09),
-    0 22px 54px rgba(0,0,0,.28) !important;
+    0 22px 54px rgba(0,0,0,.28);
   backdrop-filter:blur(24px);
   -webkit-backdrop-filter:blur(24px);
 }
 #wolfbbsNotesArea,
 .wolfbbs-action-dock-search input[type=search],
 .wolfbbs-table-toolbar input[type=search]{
-  background:linear-gradient(180deg,rgba(17,23,37,.94),rgba(10,14,24,.88)) !important;
-  color:var(--text) !important;
-  border:1px solid rgba(180,203,255,.16) !important;
+  background:linear-gradient(180deg,rgba(17,23,37,.94),rgba(10,14,24,.88));
+  color:var(--text);
+  border:1px solid rgba(180,203,255,.16);
 }
 .wolfbbs-section-progress,
 .wolfbbs-table-count,
@@ -4677,13 +4680,13 @@ main.wolfbbs-main h3 > .wolfbbs-section-done-toggle{
 #wolfbbsToastCenterList li,
 #wolfbbsShortcutPanel li,
 #wolfbbsMacroHelpPanel li{
-  color:rgba(224,233,255,.7) !important;
+  color:rgba(224,233,255,.7);
 }
 .wolfbbs-section-pin-rail{
   border-style:solid;
 }
 .wolfbbs-section-pin-rail .wolfbbs-muted{
-  color:rgba(224,233,255,.62) !important;
+  color:rgba(224,233,255,.62);
 }
 #wolfbbsActionDock{
   bottom:92px;
@@ -4696,32 +4699,32 @@ main.wolfbbs-main h3 > .wolfbbs-section-done-toggle{
 .wolfbbs-action-dock-head strong,
 .wolfbbs-action-dock-group-title,
 .wolfbbs-workspace-row strong{
-  color:rgba(245,248,255,.92) !important;
+  color:rgba(245,248,255,.92);
 }
 .wolfbbs-action-dock-group-title span{
-  color:rgba(224,233,255,.62) !important;
+  color:rgba(224,233,255,.62);
 }
 .wolfbbs-pref-menu[open] > summary{
-  background:linear-gradient(180deg,rgba(58,84,122,.94),rgba(31,46,73,.96)) !important;
+  background:linear-gradient(180deg,rgba(58,84,122,.94),rgba(31,46,73,.96));
 }
 .wolfbbs-help-copy{
-  border-color:rgba(162,206,255,.18) !important;
-  border-left-color:rgba(108,188,255,.72) !important;
-  background:linear-gradient(180deg,rgba(24,35,54,.9),rgba(12,18,30,.96)) !important;
-  color:rgba(224,233,255,.78) !important;
+  border-color:rgba(162,206,255,.18);
+  border-left-color:rgba(108,188,255,.72);
+  background:linear-gradient(180deg,rgba(24,35,54,.9),rgba(12,18,30,.96));
+  color:rgba(224,233,255,.78);
   box-shadow:inset 0 1px 0 rgba(255,255,255,.05), 0 12px 26px rgba(0,0,0,.16);
 }
 .wolfbbs-pref-menu-note{
-  color:inherit !important;
+  color:inherit;
 }
 .wolfbbs-toast{
-  background:linear-gradient(180deg,rgba(17,24,38,.94),rgba(8,12,22,.94)) !important;
+  background:linear-gradient(180deg,rgba(17,24,38,.94),rgba(8,12,22,.94));
 }
 .wolfbbs-toast[data-kind="ok"]{
-  border-color:rgba(124,255,209,.22) !important;
+  border-color:rgba(124,255,209,.22);
 }
 .wolfbbs-toast[data-kind="error"]{
-  border-color:rgba(255,123,150,.24) !important;
+  border-color:rgba(255,123,150,.24);
 }
 .wolfbbs-form-actions-sticky{
   bottom:18px;
@@ -4736,13 +4739,13 @@ main.wolfbbs-main h3 > .wolfbbs-section-done-toggle{
 #wolfbbsFeedbackButton{left:246px}
 #chat{
   min-height:360px;
-  border:1px solid rgba(195,220,255,.16) !important;
+  border:1px solid rgba(195,220,255,.16);
   background:
     radial-gradient(circle at 20% 0%, rgba(73,182,255,.12), transparent 38%),
     linear-gradient(180deg,rgba(12,17,29,.96),rgba(6,9,16,.98));
 }
 #chatStatus{
-  color:#d0e9ff !important;
+  color:#d0e9ff;
 }
 #mod form{
   background:linear-gradient(180deg,rgba(22,30,47,.78),rgba(8,12,22,.9));
@@ -5054,8 +5057,8 @@ button,
 }
 .wolfbbs-morph-active{
   transform:translateY(1px) scale(.97) !important;
-  box-shadow:inset 0 12px 28px rgba(255,255,255,.08), 0 12px 24px rgba(0,0,0,.18) !important;
-  border-color:rgba(255,255,255,.32) !important;
+  box-shadow:inset 0 12px 28px rgba(255,255,255,.08), 0 12px 24px rgba(0,0,0,.18);
+  border-color:rgba(255,255,255,.32);
 }
 @keyframes wolfbbsSpatialFloat{
   0%,100%{
@@ -5378,5 +5381,6 @@ body[data-route-profile="dense"] .wolfbbs-section-nav-tools > summary{
     animation:none !important;
     transition:none !important;
   }
+}
 }
 </style>`

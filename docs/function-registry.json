@@ -1865,6 +1865,19 @@
       "status_ui": "/admin/mod-center + /status",
       "state_visibility": "report assignment/SLA state, canned responses, and case threads are visible in one moderation queue",
       "notes": "Discovered from cmd/wolfbbs-web route registration."
+    },
+    {
+      "id": "web:/assets/fonts/",
+      "type": "web_route",
+      "entrypoint": "/assets/fonts/",
+      "user_tui": false,
+      "user_web": true,
+      "admin_tui": false,
+      "admin_web": true,
+      "config_ui": "/admin/config",
+      "status_ui": "/status",
+      "state_visibility": "static brand font assets; no runtime state",
+      "notes": "Serves the embedded Resonant Mirror PC6300 web font used by the brand stylesheet."
     }
   ]
 }

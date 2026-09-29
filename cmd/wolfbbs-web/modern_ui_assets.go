@@ -1,3 +1,3 @@
 package main
 
-const modernUIBootstrap = modernUIStyleTag + modernUIScriptTag
+const modernUIBootstrap = modernUIStyleTag + brandStyleTag + modernUIScriptTag
