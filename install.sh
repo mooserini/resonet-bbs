@@ -19,6 +19,7 @@ WITH_DOCKER=true
 DRY_RUN=false
 NON_INTERACTIVE=false
 FORCE=false
+ALLOW_DATA_LOSS=false
 SSH_PORT="$DEFAULT_SSH_PORT"
 WEB_PORT="$DEFAULT_WEB_PORT"
 IRC_PORT="$DEFAULT_IRC_PORT"
@@ -1040,6 +1041,7 @@ Options:
   --yes, --non-interactive  run non-interactively
   --install-brew            on macOS, install Homebrew when missing (requires explicit flag)
   --force                   overwrite existing generated config
+  --i-understand-data-loss  let --yes skip the typed WIPE confirmation for destructive steps
   --bbs-name <name>         ADVANCED: set BBS display name at install (prefer /admin/setup)
   --hostname <name>         ADVANCED: set public hostname at install (prefer /admin/setup)
   --setup-profile <name>    ADVANCED: basic|critical|expert baseline (prefer /admin/setup)
@@ -1097,9 +1099,16 @@ action_selected() {
     "$DEPS_ONLY" == "true" ]]
 }
 
+wolfbbs_stack_running() {
+  command -v docker >/dev/null 2>&1 || return 1
+  docker ps --filter label=com.docker.compose.project --format '{{.Label "com.docker.compose.project"}}' 2>/dev/null |
+    grep -qi 'wolfbbs'
+}
+
 show_interactive_action_menu() {
   local args_count="${1:-0}"
   local choice=""
+  local default_choice="1"
 
   if [[ "$args_count" -gt 0 ]]; then
     return
@@ -1109,6 +1118,12 @@ show_interactive_action_menu() {
   fi
   if action_selected; then
     return
+  fi
+
+  if wolfbbs_stack_running; then
+    default_choice="9"
+    echo "WolfBBS is already installed and running. Enter shows Status; nothing is changed unless you pick another option."
+    echo
   fi
 
   while true; do
@@ -1143,11 +1158,11 @@ show_interactive_action_menu() {
     menu_line "Read docs/START_HERE.md for first launch and docs/OPERATIONS.md for day-two ops"
     menu_line "q) Quit"
     echo "└──────────────────────────────────────────────────────────────────────────────┘"
-    printf "Selection [1]: "
+    printf "Selection [%s]: " "$default_choice"
     read -r choice
     choice="$(trim "$choice")"
     if [[ -z "$choice" ]]; then
-      choice="1"
+      choice="$default_choice"
     fi
     choice="$(printf '%s' "$choice" | tr '[:upper:]' '[:lower:]')"
 
@@ -1624,6 +1639,49 @@ confirm() {
   fi
   normalized="$(printf '%s' "$reply" | tr '[:upper:]' '[:lower:]')"
   [[ "$normalized" == "y" || "$normalized" == "yes" ]]
+}
+
+# Destructive steps (overwriting an existing .env, deleting data volumes,
+# removing the install directory) need the operator to type WIPE.
+# --yes alone never satisfies this; --yes --i-understand-data-loss does.
+confirm_destructive() {
+  local prompt="$1"
+  local reply=""
+  echo
+  echo "!! DESTRUCTIVE: ${prompt}"
+  echo "!! This cannot be undone."
+  if [[ "$ALLOW_DATA_LOSS" == "true" ]]; then
+    echo "!! Proceeding because --i-understand-data-loss was passed."
+    return 0
+  fi
+  if [[ "$NON_INTERACTIVE" == "true" || ! -t 0 ]]; then
+    echo "!! Refusing in non-interactive mode. Rerun interactively, or add --i-understand-data-loss."
+    return 1
+  fi
+  printf 'Type WIPE to continue (anything else cancels): '
+  read -r reply
+  if [[ "$(trim "$reply")" == "WIPE" ]]; then
+    return 0
+  fi
+  echo "Cancelled. Nothing was removed or overwritten."
+  return 1
+}
+
+env_backup_path() {
+  printf '%s.bak-%s' "$1" "$(date +%Y%m%d-%H%M%S)"
+}
+
+# Copy an existing env file aside before it is replaced.
+backup_env_file() {
+  local file_path="$1"
+  local backup=""
+  if [[ ! -f "$file_path" || "$DRY_RUN" == "true" ]]; then
+    return 0
+  fi
+  backup="$(env_backup_path "$file_path")"
+  cp -p "$file_path" "$backup"
+  chmod 600 "$backup" >/dev/null 2>&1 || true
+  echo "Backed up ${file_path} to ${backup}"
 }
 
 require_cmd() {
@@ -2629,6 +2687,12 @@ ensure_runtime_env_defaults() {
   app_upgrade_timeout="${WOLFBBS_APP_UPGRADE_TIMEOUT_SECONDS:-900}"
   app_upgrade_command='docker compose -f /wolfbbs-host/docker-compose.yml --env-file /wolfbbs-prefix/.env up -d --build --remove-orphans'
 
+  # Snapshot first so we only leave a backup behind when something changed.
+  local snapshot=""
+  snapshot="$(mktemp "${TMPDIR:-/tmp}/wolfbbs-env-snap.XXXXXX")"
+  chmod 600 "$snapshot"
+  cp -p "$file_path" "$snapshot"
+
   append_env_value_if_missing "$file_path" "WOLFBBS_INSTALL_PREFIX" "$(quote_env_literal "${PREFIX}")"
   append_env_value_if_missing "$file_path" "WOLFBBS_INSTALL_WORKDIR" "$(quote_env_literal "${install_workdir}")"
   upsert_env_value "$file_path" "WOLFBBS_DOCKER_SOCKET" "$(quote_env_literal "${docker_socket}")"
@@ -2636,6 +2700,16 @@ ensure_runtime_env_defaults() {
   append_env_value_if_missing "$file_path" "WOLFBBS_APP_UPGRADE_COMMAND" "$(quote_env_literal "${app_upgrade_command}")"
   append_env_value_if_missing "$file_path" "WOLFBBS_APP_UPGRADE_TIMEOUT_SECONDS" "$app_upgrade_timeout"
   chmod 600 "$file_path" >/dev/null 2>&1 || true
+
+  if cmp -s "$snapshot" "$file_path"; then
+    rm -f "$snapshot"
+  else
+    local backup=""
+    backup="$(env_backup_path "$file_path")"
+    mv "$snapshot" "$backup"
+    chmod 600 "$backup" >/dev/null 2>&1 || true
+    log "Updated runtime defaults in ${file_path}; previous version saved to ${backup}"
+  fi
 }
 
 write_env_file() {
@@ -2666,7 +2740,9 @@ write_env_file() {
     return
   fi
   if [[ -f "$ENV_FILE" && "$FORCE" == "true" ]]; then
-    if ! confirm "Overwrite existing env file at ${ENV_FILE}?"; then
+    if confirm_destructive "Overwrite ${ENV_FILE} with NEW database, session, and sysop passwords. The existing database will stop accepting the app's connection."; then
+      backup_env_file "$ENV_FILE"
+    else
       log "Keeping existing env file."
       ensure_runtime_env_defaults "$ENV_FILE"
       ENV_CREATED_THIS_RUN=false
@@ -3972,6 +4048,10 @@ parse_args() {
         FORCE=true
         shift
         ;;
+      --i-understand-data-loss)
+        ALLOW_DATA_LOSS=true
+        shift
+        ;;
       --bbs-name)
         require_value "$1" "${2:-}"
         BBS_NAME="$2"
@@ -4305,7 +4385,8 @@ main() {
         log "Compose context unavailable; using compose-less Docker cleanup fallback."
         docker_cleanup_without_compose false
       fi
-      if [[ "$PURGE" == "true" ]] || confirm "Remove volumes and all installed data? (run with --purge to auto-confirm)"; then
+      if { [[ "$PURGE" == "true" ]] || confirm "Also remove volumes and all installed data?"; } &&
+        confirm_destructive "Delete WolfBBS data volumes, including the Postgres database (users, boards, messages)."; then
         if [[ "$can_use_compose" == "true" ]]; then
           docker_compose_down_purge || true
         else
@@ -4313,6 +4394,10 @@ main() {
         fi
       fi
       if [[ "$CLEAN_UNINSTALL" == "true" ]]; then
+        if ! confirm_destructive "Delete the install directory ${PREFIX}, including its .env and backups."; then
+          echo "Preserved install directory: ${PREFIX}"
+          exit 0
+        fi
         if ! remove_install_prefix; then
           exit 1
         fi
