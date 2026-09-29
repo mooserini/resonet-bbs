@@ -1878,6 +1878,45 @@
       "status_ui": "/status",
       "state_visibility": "static brand font assets; no runtime state",
       "notes": "Serves the embedded Resonant Mirror PC6300 web font used by the brand stylesheet."
+    },
+    {
+      "id": "web:/assets/icons/",
+      "type": "web_route",
+      "entrypoint": "/assets/icons/",
+      "user_tui": false,
+      "user_web": true,
+      "admin_tui": false,
+      "admin_web": true,
+      "config_ui": "/admin/config",
+      "status_ui": "/status",
+      "state_visibility": "static brand assets; no runtime state",
+      "notes": "Serves the embedded Resonant Mirror favicon and app icons."
+    },
+    {
+      "id": "web:/favicon.ico",
+      "type": "web_route",
+      "entrypoint": "/favicon.ico",
+      "user_tui": false,
+      "user_web": true,
+      "admin_tui": false,
+      "admin_web": true,
+      "config_ui": "/admin/config",
+      "status_ui": "/status",
+      "state_visibility": "static brand assets; no runtime state",
+      "notes": "Resonant Mirror favicon (multi-size ICO)."
+    },
+    {
+      "id": "web:/apple-touch-icon.png",
+      "type": "web_route",
+      "entrypoint": "/apple-touch-icon.png",
+      "user_tui": false,
+      "user_web": true,
+      "admin_tui": false,
+      "admin_web": true,
+      "config_ui": "/admin/config",
+      "status_ui": "/status",
+      "state_visibility": "static brand assets; no runtime state",
+      "notes": "Resonant Mirror 180px touch icon."
     }
   ]
 }

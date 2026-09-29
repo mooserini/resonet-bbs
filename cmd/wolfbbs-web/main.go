@@ -1084,6 +1084,9 @@ func main() {
 	http.HandleFunc("/connect", app.handleConnect)
 	http.HandleFunc("/tour", app.handleGuestTour)
 	http.Handle("/assets/fonts/", brandAssetHandler())
+	http.Handle("/assets/icons/", brandAssetHandler())
+	http.Handle("/favicon.ico", faviconHandler("favicon.ico", "image/x-icon"))
+	http.Handle("/apple-touch-icon.png", faviconHandler("icon-180.png", "image/png"))
 	http.HandleFunc("/login", app.handleLogin)
 	http.HandleFunc("/admin/login", app.handleLogin)
 	http.HandleFunc("/help", app.handleHelp)
@@ -5412,6 +5415,9 @@ func injectModernUI(page string) string {
 	}
 	if !strings.Contains(lower, `name="viewport"`) {
 		headInject += `<meta name="viewport" content="width=device-width, initial-scale=1">`
+	}
+	if !strings.Contains(lower, `rel="icon"`) {
+		headInject += brandIconLinks
 	}
 	if !strings.Contains(page, `id="wolfbbs-modern-ui"`) {
 		headInject += modernUIBootstrap
