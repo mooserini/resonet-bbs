@@ -4328,6 +4328,13 @@ backup_board() {
   fi
   cp -p "$ENV_FILE" "${dir}/env"
   chmod 600 "${dir}/database.dump" "${dir}/env"
+  # The SSH host key lives on the sshkeys volume; keep a copy so a rebuilt or
+  # moved install can keep the same identity.
+  if eval "$COMPOSE_BASE exec -T bbs cat /app/.wolfbbs/ssh/ssh_host_ed25519_key" >"${dir}/ssh_host_ed25519_key" 2>/dev/null && [[ -s "${dir}/ssh_host_ed25519_key" ]]; then
+    chmod 600 "${dir}/ssh_host_ed25519_key"
+  else
+    rm -f "${dir}/ssh_host_ed25519_key"
+  fi
   {
     echo "Backup of ${PUBLIC_NAME}"
     echo "created: $(date -u +'%Y-%m-%dT%H:%M:%SZ')"

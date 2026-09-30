@@ -148,9 +148,10 @@ func (t *webTerminal) handleSocket(w http.ResponseWriter, r *http.Request) {
 
 	client, err := ssh.Dial("tcp", t.sshAddr, &ssh.ClientConfig{
 		User: "web",
-		// The BBS listener sits on the private Docker network (or loopback),
-		// and its host key is regenerated per container, so there is nothing
-		// stable to pin. Callers authenticate at the BBS login screen.
+		// The BBS listener sits on the private Docker network (or loopback).
+		// Its host key is now stable (sshkeys volume) but not shared with the
+		// web container, so it isn't pinned here. Callers authenticate at the
+		// BBS login screen.
 		HostKeyCallback: ssh.InsecureIgnoreHostKey(),
 		Timeout:         terminalDialWait,
 	})
