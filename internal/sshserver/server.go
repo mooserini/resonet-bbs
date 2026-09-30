@@ -370,7 +370,7 @@ func (s *Server) handleSession(sess gssh.Session) {
 			writeClear(sess, sessionANSI)
 			renderFrame(sess, termWidth, renderWidth, ui.RenderTopBarWithClock(renderWidth, s.siteName(), currentUser, time.Now(), nodeLabel, th, sessionTime24h)+"\r\n", sessionANSI, sessionEncoding)
 			io.WriteString(sess, "\r\n")
-			renderFrame(sess, termWidth, renderWidth, ui.RenderWelcomeForProfile(renderWidth, termProfile.CompactUI, term.ProfileHints(termProfile)), sessionANSI, sessionEncoding)
+			renderFrame(sess, termWidth, renderWidth, ui.RenderWelcomeForSite(renderWidth, s.siteName(), termProfile.CompactUI, term.ProfileHints(termProfile)), sessionANSI, sessionEncoding)
 			io.WriteString(sess, ui.FooterPrompt(renderWidth, "Press any key to continue")+"\r\n")
 			if key, err := readKey(reader); err == nil {
 				touch()
