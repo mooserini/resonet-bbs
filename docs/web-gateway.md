@@ -46,6 +46,21 @@
 - AI gateway uses the same outbound URL safety model for remote HTTPS endpoints.
 - Private or loopback AI endpoints require explicit operator opt-in with `WOLFBBS_GATEWAY_AI_ALLOW_PRIVATE=1`.
 
+## AI Door Access
+- Sysops can always use the AI door. Everyone else must be listed under **Allowed handles** in `/admin/gateways` (SSH admin: `AIUSERS alice,bob`).
+- Granted users get **Daily prompts per user** successful prompts a day (default 20, `0` = no limit; SSH admin: `AICAP 20`). Sysops are never counted.
+- A fresh install with the AI door switched on is therefore sysop-only until the sysop grants someone.
+
+## Local Models (llama.cpp)
+Any OpenAI-compatible server works, including `llama-server` / `llama serve` on the host running Docker.
+1. Set `WOLFBBS_GATEWAY_AI_ALLOW_PRIVATE=1` in your `.env` and recreate the containers.
+2. In `/admin/gateways` set:
+   - **AI Base URL** `http://host.docker.internal:<port>` (no `/v1`; the board adds `/v1/chat/completions`). On Docker Desktop this reaches servers bound to the host's `127.0.0.1`, so the model doesn't need to listen on your network.
+   - **AI Model** the model id from `curl http://127.0.0.1:<port>/v1/models`.
+   - **AI API Key** any non-empty text unless your server was started with `--api-key`.
+   - **AI Timeout Sec** 60 or more; the first prompt after the model unloads waits for it to load.
+3. Tick **Skip thinking** for reasoning models (Gemma 4, Qwen 3). Otherwise the thinking pass can use the whole Max Tokens budget and the reply comes back empty.
+
 ## Offline Reader
 - `Save for offline reading` stores extracted text in per-user folder path:
   - `offline/<user_handle>/<timestamp>-<slug>.txt`

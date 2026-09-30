@@ -8859,11 +8859,19 @@ func (a *webApp) handleGateway(w http.ResponseWriter, r *http.Request) {
 			} else if strings.TrimSpace(aiCfg.APIKey) != "" {
 				aiStatus = "configured but disabled"
 			}
+			access := gateway.CheckAIAccess(a.aiSettingsStore(), user, time.Now())
+			accessText := access.Reason
+			if access.Allowed && access.Unlimited {
+				accessText = "no daily limit"
+			} else if access.Allowed {
+				accessText = fmt.Sprintf("%d prompts left today", access.Remaining)
+			}
 			modelText := htmlEscape(defaultIfBlank(aiCfg.Model, "n/a"))
 			baseText := htmlEscape(defaultIfBlank(aiCfg.BaseURL, "n/a"))
 			page := `<html><body><h1>Generative AI Door</h1>` + gatewayNav + messageBlock +
 				`<p>Use a provider-compatible chat completion endpoint from inside the BBS. Every response is clearly marked.</p>` +
 				`<p><strong>Status:</strong> ` + htmlEscape(aiStatus) + ` | <strong>Model:</strong> ` + modelText + ` | <strong>Endpoint:</strong> ` + baseText + `</p>` +
+				`<p><strong>Your access:</strong> ` + htmlEscape(accessText) + `</p>` +
 				`<form method="POST" action="/gateway">` + csrf + `<input type="hidden" name="action" value="ai_prompt">` +
 				`<label>Prompt<br><textarea name="prompt" rows="8" cols="88" placeholder="Ask for a quick summary, draft, or idea list."></textarea></label><br><button type="submit">Send prompt</button></form>` +
 				`<p><a href="/admin/gateways">Configure AI gateway</a> | <a href="/gateway?view=browser">Text browser</a> | <a href="/gateway?view=summarize">Summarizer</a></p>` +
@@ -9066,6 +9074,11 @@ func (a *webApp) handleGateway(w http.ResponseWriter, r *http.Request) {
 			redirectWithError(w, r, "/gateway?view=ai", "AI gateway is disabled. Enable it in /admin/gateways.")
 			return
 		}
+		if access := gateway.CheckAIAccess(a.aiSettingsStore(), user, time.Now()); !access.Allowed {
+			redirectWithError(w, r, "/gateway?view=ai", access.Reason)
+			return
+		}
+		aiPolicy := gateway.LoadAIPolicy(a.aiSettingsStore())
 		client := gateway.NewAIClient(gateway.AIConfig{
 			BaseURL:      aiCfg.BaseURL,
 			AllowPrivate: allowPrivateAIGatewayBaseURLs(),
@@ -9074,11 +9087,15 @@ func (a *webApp) handleGateway(w http.ResponseWriter, r *http.Request) {
 			SystemPrompt: aiCfg.SystemPrompt,
 			Timeout:      time.Duration(aiCfg.TimeoutSec) * time.Second,
 			MaxTokens:    aiCfg.MaxTokens,
+			NoThinking:   aiPolicy.NoThinking,
 		})
 		reply, err := client.Complete(r.Context(), prompt)
 		if err != nil {
 			redirectWithError(w, r, "/gateway?view=ai", "AI request failed: "+err.Error())
 			return
+		}
+		if err := gateway.RecordAIUse(a.aiSettingsStore(), user, time.Now()); err != nil {
+			a.addAppError("gateway.ai", fmt.Errorf("record ai usage: %w", err))
 		}
 		page := `<html><body><h1>AI Door Reply</h1>` + gatewayNav +
 			`<p><a href="/gateway?view=ai">back to AI door</a> | <a href="/gateway?view=summarize">summarizer</a></p>` +
@@ -12499,12 +12516,25 @@ func (a *webApp) handleAdminGateways(w http.ResponseWriter, r *http.Request) {
 			}
 		}
 		a.persistAIGatewaySettings(aiCfg)
+		if a.adminRepo != nil {
+			policy := gateway.AIPolicy{
+				AllowedHandles: gateway.ParseAIAllowedHandles(r.FormValue("ai_allowed_users")),
+				DailyCap:       parseInt(r.FormValue("ai_daily_cap"), gateway.DefaultAIDailyCap),
+				NoThinking:     parseCheckbox(r.FormValue("ai_no_thinking")),
+			}
+			if err := gateway.SaveAIPolicy(a.adminRepo, policy); err != nil {
+				a.addAppError("admin.gateways", fmt.Errorf("save ai access policy: %w", err))
+			} else {
+				a.recordAdminAction(user.Handle, "gateway.ai", "update_ai_access", "users="+gateway.FormatAIAllowedHandles(policy.AllowedHandles)+" cap="+strconv.Itoa(policy.DailyCap))
+			}
+		}
 		redirectWithNotice(w, r, "/admin/gateways", "Gateway settings saved.")
 		return
 	}
 	cfg := a.activeGatewaySettings()
 	aiCfg := a.loadAIGatewaySettings()
 	aiAllowPrivate := allowPrivateAIGatewayBaseURLs()
+	aiPolicy := gateway.LoadAIPolicy(a.aiSettingsStore())
 	emailGateway := a.activeEmailGateway()
 	csrf := a.csrfHiddenInput(r)
 	messageBlock := pageMessageBlock(r)
@@ -12534,6 +12564,11 @@ func (a *webApp) handleAdminGateways(w http.ResponseWriter, r *http.Request) {
 		`<label>AI Timeout Sec <input name="ai_timeout_sec" value="` + strconv.Itoa(aiCfg.TimeoutSec) + `"></label><br>` +
 		`<label>AI Max Tokens <input name="ai_max_tokens" value="` + strconv.Itoa(aiCfg.MaxTokens) + `"></label><br>` +
 		`<label>AI System Prompt<br><textarea name="ai_system_prompt" rows="4" cols="84">` + htmlEscape(aiCfg.SystemPrompt) + `</textarea></label><br>` +
+		`<label><input type="checkbox" name="ai_no_thinking"` + checkedIf(aiPolicy.NoThinking) + `> Skip thinking</label> <span class="wolfbbs-muted">for local reasoning models (Gemma, Qwen) on llama.cpp, so answers aren't eaten by the thinking pass</span><br>` +
+		`<h3>Who can use the AI door</h3>` +
+		`<p class="wolfbbs-muted">Sysops always can. Everyone else needs to be listed here.</p>` +
+		`<label>Allowed handles <input name="ai_allowed_users" size="60" value="` + htmlEscape(gateway.FormatAIAllowedHandles(aiPolicy.AllowedHandles)) + `"></label> <span class="wolfbbs-muted">comma-separated</span><br>` +
+		`<label>Daily prompts per user <input name="ai_daily_cap" value="` + strconv.Itoa(aiPolicy.DailyCap) + `"></label> <span class="wolfbbs-muted">0 = no limit; sysops are never limited</span><br>` +
 		`<p class="wolfbbs-muted">Private or loopback AI endpoints stay blocked by default. Set <code>WOLFBBS_GATEWAY_AI_ALLOW_PRIVATE=1</code> only when you intentionally run a local/private model endpoint.</p>` +
 		`<button type="submit">Save</button></form>` +
 		`<h2>Diagnostics</h2><table border="1"><tr><th>Check</th><th>Status</th></tr>` +
@@ -13558,6 +13593,15 @@ func (a *webApp) loadLockedChannels(raw string) {
 		}
 		a.lockedChat[channel] = true
 	}
+}
+
+// aiSettingsStore returns the admin repo as an AI policy store, or nil so the
+// gateway helpers fall back to defaults (sysop-only) without a repo.
+func (a *webApp) aiSettingsStore() gateway.AISettingsStore {
+	if a.adminRepo == nil {
+		return nil
+	}
+	return a.adminRepo
 }
 
 func (a *webApp) persistSystemSetting(key, value string) {

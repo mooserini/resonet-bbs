@@ -1354,6 +1354,17 @@ func (s *Server) handleSession(sess gssh.Session) {
 					state = stateMainMenu
 					continue
 				}
+				access := gateway.CheckAIAccess(s.aiSettingsStore(), currentAccount, time.Now())
+				if !access.Allowed {
+					io.WriteString(sess, "\r\n"+access.Reason+" Press any key.\r\n")
+					_, _ = readKey(reader)
+					touch()
+					state = stateMainMenu
+					continue
+				}
+				if !access.Unlimited {
+					io.WriteString(sess, fmt.Sprintf("\r\n%d AI prompts left today.", access.Remaining))
+				}
 				io.WriteString(sess, "\r\nPrompt: ")
 				prompt, err := readLine(reader, 1200)
 				if err != nil {
@@ -1375,7 +1386,9 @@ func (s *Server) handleSession(sess gssh.Session) {
 					SystemPrompt: aiCfg.SystemPrompt,
 					Timeout:      time.Duration(aiCfg.TimeoutSec) * time.Second,
 					MaxTokens:    aiCfg.MaxTokens,
+					NoThinking:   gateway.LoadAIPolicy(s.aiSettingsStore()).NoThinking,
 				})
+				io.WriteString(sess, "\r\nThinking...\r\n")
 				answer, aiErr := client.Complete(context.Background(), prompt)
 				if aiErr != nil {
 					io.WriteString(sess, "\r\nAI request failed: "+aiErr.Error()+"\r\nPress any key.\r\n")
@@ -1384,6 +1397,7 @@ func (s *Server) handleSession(sess gssh.Session) {
 					state = stateMainMenu
 					continue
 				}
+				_ = gateway.RecordAIUse(s.aiSettingsStore(), currentAccount, time.Now())
 				var out strings.Builder
 				out.WriteString("Model: " + aiCfg.Model + "\n")
 				out.WriteString(strings.Repeat("-", 60) + "\n")
@@ -2671,6 +2685,15 @@ func defaultAIGatewaySettingsFromEnv() aiGatewaySettings {
 		cfg.Enabled = true
 	}
 	return cfg
+}
+
+// aiSettingsStore returns the admin repo as an AI policy store, or nil so the
+// gateway helpers fall back to defaults (sysop-only) without a repo.
+func (s *Server) aiSettingsStore() gateway.AISettingsStore {
+	if s == nil || s.admin == nil {
+		return nil
+	}
+	return s.admin
 }
 
 func allowPrivateAIGatewayBaseURLsSSH() bool {
