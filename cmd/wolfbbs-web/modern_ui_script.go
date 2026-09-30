@@ -4085,6 +4085,33 @@ const modernUIScriptTag = `
     return Boolean(node.isContentEditable);
   }
 
+  // Sysop tools: the table tools, row inspector, "On this page" counters and
+  // diagnostic buttons are self-debugging aids. Moderators and sysops get a
+  // checkbox to show them; everyone else gets the clean page.
+  function mountSysopToolsToggle() {
+    const key = "wolfbbs:ui:sysop-tools:v1";
+    const meta = document.querySelector('meta[name="wolfbbs-viewer-role"]');
+    const role = String((meta && meta.content) || "").toLowerCase();
+    const privileged = ["moderator", "sysop", "admin"].includes(role);
+    const apply = (on) => document.documentElement.setAttribute("data-sysop-tools", on && privileged ? "on" : "off");
+    let on = privileged && readJSON(key, false) === true;
+    apply(on);
+    if (!privileged || document.getElementById("wolfbbsSysopTools")) return;
+    const label = document.createElement("label");
+    label.id = "wolfbbsSysopTools";
+    label.title = "Show table tools, row inspector, page counters and diagnostic buttons";
+    const box = document.createElement("input");
+    box.type = "checkbox";
+    box.checked = on;
+    box.addEventListener("change", () => {
+      on = box.checked;
+      writeJSON(key, on);
+      apply(on);
+    });
+    label.append(box, document.createTextNode(" Sysop tools"));
+    document.body.insertBefore(label, document.body.firstChild);
+  }
+
   function mountUXRound20Pass() {
     const main = document.querySelector("main.wolfbbs-main");
     const hero = document.querySelector(".wolfbbs-page-hero");
@@ -4406,6 +4433,7 @@ const modernUIScriptTag = `
 
   }
 
+  mountSysopToolsToggle();
   mountSkipAndScrollUI();
   mountRevisitBanner();
   mountBreadcrumbs();
@@ -6573,7 +6601,7 @@ const modernUIScriptTag = `
       if (!table) return;
       const state = Object.assign({ sticky: false, compact: false }, readJSON(tableRound3Key(index), {}));
       const toolbar = document.createElement("div");
-      toolbar.className = "wolfbbs-inline-actions";
+      toolbar.className = "wolfbbs-inline-actions wolfbbs-table-round3";
       const sticky = document.createElement("button");
       sticky.type = "button";
       const compact = document.createElement("button");

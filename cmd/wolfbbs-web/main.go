@@ -5365,7 +5365,11 @@ func (a *webApp) withModernUI(next http.Handler) http.Handler {
 		body := writer.body.Bytes()
 		contentType := strings.ToLower(strings.TrimSpace(writer.header.Get("Content-Type")))
 		if shouldInjectModernUI(contentType, body) {
-			body = []byte(injectModernUI(string(body)))
+			view := modernUIView{siteName: a.siteDisplayName()}
+			if user, ok := a.currentUser(r); ok && user != nil {
+				view.role = rbac.NormalizeRole(user.Role)
+			}
+			body = []byte(injectModernUIWith(string(body), view))
 			writer.header.Del("Content-Length")
 		}
 
@@ -5403,7 +5407,20 @@ func shouldInjectModernUI(contentType string, body []byte) bool {
 	return strings.HasPrefix(trimmed, "<!doctype html") || strings.HasPrefix(trimmed, "<html")
 }
 
+// modernUIView carries per-request facts the page scripts need.
+type modernUIView struct {
+	siteName string
+	role     string
+}
+
 func injectModernUI(page string) string {
+	return injectModernUIWith(page, modernUIView{siteName: defaultSiteName()})
+}
+
+func injectModernUIWith(page string, view modernUIView) string {
+	if strings.TrimSpace(view.siteName) == "" {
+		view.siteName = defaultSiteName()
+	}
 	lower := strings.ToLower(page)
 	if htmlIdx := strings.Index(lower, "<html"); htmlIdx >= 0 && !strings.Contains(lower, "<html lang=") {
 		rest := page[htmlIdx:]
@@ -5421,7 +5438,10 @@ func injectModernUI(page string) string {
 		headInject += `<meta name="viewport" content="width=device-width, initial-scale=1">`
 	}
 	if !strings.Contains(lower, `name="application-name"`) {
-		headInject += `<meta name="application-name" content="` + htmlEscape(defaultSiteName()) + `">`
+		headInject += `<meta name="application-name" content="` + htmlEscape(view.siteName) + `">`
+	}
+	if view.role != "" && !strings.Contains(lower, `name="wolfbbs-viewer-role"`) {
+		headInject += `<meta name="wolfbbs-viewer-role" content="` + htmlEscape(view.role) + `">`
 	}
 	if !strings.Contains(lower, `rel="icon"`) {
 		headInject += brandIconLinks
