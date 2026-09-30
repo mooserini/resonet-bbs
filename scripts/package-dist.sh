@@ -173,6 +173,7 @@ for platform in "${PLATFORMS[@]}"; do
 
   cp README.md LICENSE CONTRIBUTING.md SECURITY.md docker-compose.yml docker-compose.app-upgrade.yml .env.example identity.env install.sh bootstrap.sh "$bundle_root/"
   cp Dockerfile.bundle "$bundle_root/Dockerfile"
+  cp -R doors menus "$bundle_root/"
   for doc in "${doc_list[@]}"; do
     rel="${doc#docs/}"
     mkdir -p "$bundle_root/docs/$(dirname "$rel")"

@@ -11,6 +11,8 @@ COPY container-bin/wolfbbs-irc /app/wolfbbs-irc
 COPY container-bin/wolfbbs-mailin /app/wolfbbs-mailin
 COPY container-bin/wolfbbs-trivia /app/wolfbbs-trivia
 COPY container-bin/oputil /app/oputil
+COPY doors /app/doors
+COPY menus /app/menus
 RUN chmod +x /app/wolfbbs /app/wolfbbs-web /app/wolfbbs-irc /app/wolfbbs-mailin /app/wolfbbs-trivia /app/oputil
 EXPOSE 2222 8080 6667 8091
 ENTRYPOINT ["/app/wolfbbs", "-listen", ":2222"]
