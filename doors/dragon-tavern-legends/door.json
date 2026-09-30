@@ -27,11 +27,11 @@
     "daily_turns": 40,
     "time_bank_max": 200,
     "reset_hour": 0,
-    "max_run_seconds": 180,
+    "max_run_seconds": 1800,
     "max_output_rate": 4096
   },
   "required_role": "user",
-  "help_text": "Dragon Tavern Legends: complete daily fights, visit the tavern, and improve your loadout.",
+  "help_text": "Dragon Tavern Legends: hunt the forest (15 fights a day), heal at the hut, visit the tavern, and improve your loadout. Die and you lose the gold you carry and wait for tomorrow.",
   "rules_text": "Duels are limited per day and must remain sportsmanlike.",
   "args": []
 }

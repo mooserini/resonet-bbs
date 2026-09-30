@@ -65,6 +65,11 @@ type dragonTavernState struct {
 	DuelsLost  int64  `json:"duels_lost"`
 	DuelDay    string `json:"duel_day"`
 	DuelsUsed  int    `json:"duels_used"`
+
+	ForestDay        string `json:"forest_day"`
+	ForestFightsUsed int    `json:"forest_fights_used"`
+	Dead             bool   `json:"dead"`
+	Deaths           int64  `json:"deaths"`
 }
 
 type votingPoll struct {
@@ -640,22 +645,46 @@ func (r *Registry) runDragonTavernLegends(ctx context.Context, door Door, _ doma
 	if err != nil {
 		return err
 	}
+	rng := newDragonRand()
+	save := func() error {
+		dragonNormalizeStats(&state)
+		if err := saveUserStateJSON(r.repo, dctx.UserID, door.ID, state); err != nil {
+			return err
+		}
+		if state.Level >= 5 {
+			_ = r.AwardAchievement(door.ID, dctx.UserID, "level_5")
+		}
+		_ = r.SubmitScore(door.ID, dctx.UserID, "points", dragonScoreValue(state), fmt.Sprintf(`{"level":%d,"duels_won":%d}`, state.Level, state.DuelsWon))
+		return nil
+	}
 	for {
-		resetDragonDuelWindow(&state, time.Now().UTC())
+		now := time.Now().UTC()
+		resetDragonDuelWindow(&state, now)
+		dragonResetForestDay(&state, now)
 		lines := []string{
 			fmt.Sprintf("Hero: %s  Level:%d  XP:%d", fallbackName(dctx.Username, "Adventurer"), state.Level, state.XP),
 			fmt.Sprintf("HP:%d/%d  ATK:%d  DEF:%d  Gold:%d", state.HP, state.MaxHP, state.Attack, state.Defense, state.Gold),
-			fmt.Sprintf("Forest:%d  Tavern:%d  Duels:%d/%d", state.ForestRuns, state.TavernRuns, state.DuelsUsed, 3),
+			fmt.Sprintf("Forest fights left:%d/%d  Duels:%d/%d", dragonForestFightsLeft(state), dragonForestFightsPerDay, state.DuelsUsed, 3),
 			"",
 			"(F)orest  (T)avern  (S)mithy  (D)uel",
 			"(C)haracter  (L)eaderboard  (H)elp  (R)ules  (Q)uit",
 			"",
 			"Enter selection:",
 		}
+		if state.Dead {
+			lines[3] = "You are dead. Your body lies in the forest until tomorrow."
+			lines[4] = "(C)haracter  (L)eaderboard  (H)elp  (R)ules  (Q)uit"
+			lines[5] = ""
+		}
 		renderDoorPanel(stdout, door.Name, lines, ui.FgMagenta)
 		key, err := readDoorKey(reader)
 		if err != nil {
 			return err
+		}
+		if state.Dead && (key == "F" || key == "T" || key == "S" || key == "D") {
+			io.WriteString(stdout, "\r\nThe dead cannot do that. Come back tomorrow.\r\n")
+			pauseDoor(reader, stdout)
+			continue
 		}
 		changed := false
 		switch key {
@@ -671,18 +700,16 @@ func (r *Registry) runDragonTavernLegends(ctx context.Context, door Door, _ doma
 			r.writeTopScores(stdout, door.ID, "points", "Dragon Tavern Champions")
 			pauseDoor(reader, stdout)
 		case "C":
-			io.WriteString(stdout, fmt.Sprintf("\r\nLevel %d  XP %d  Gold %d\r\nHP %d/%d  ATK %d  DEF %d\r\nForest %d  Tavern %d  Duels W/L %d/%d\r\n", state.Level, state.XP, state.Gold, state.HP, state.MaxHP, state.Attack, state.Defense, state.ForestRuns, state.TavernRuns, state.DuelsWon, state.DuelsLost))
+			io.WriteString(stdout, fmt.Sprintf("\r\nLevel %d  XP %d/%d  Gold %d\r\nHP %d/%d  ATK %d  DEF %d\r\nForest fights %d  Deaths %d  Tavern %d  Duels W/L %d/%d\r\n", state.Level, state.XP, state.Level*120, state.Gold, state.HP, state.MaxHP, state.Attack, state.Defense, state.ForestRuns, state.Deaths, state.TavernRuns, state.DuelsWon, state.DuelsLost))
 			pauseDoor(reader, stdout)
 		case "F":
-			mutated, msg := dragonForestRun(&state)
-			io.WriteString(stdout, msg)
-			if mutated {
-				changed = true
-				if state.ForestRuns == 1 {
-					_ = r.AwardAchievement(door.ID, dctx.UserID, "first_quest")
-				}
+			before := state.ForestRuns
+			if err := dragonForest(reader, stdout, &state, rng, save); err != nil {
+				return err
 			}
-			pauseDoor(reader, stdout)
+			if before == 0 && state.ForestRuns > 0 {
+				_ = r.AwardAchievement(door.ID, dctx.UserID, "first_quest")
+			}
 		case "T":
 			mutated, msg := dragonTavernRun(&state)
 			io.WriteString(stdout, msg)
@@ -718,14 +745,9 @@ func (r *Registry) runDragonTavernLegends(ctx context.Context, door Door, _ doma
 			pauseDoor(reader, stdout)
 		}
 		if changed {
-			dragonNormalizeStats(&state)
-			if err := saveUserStateJSON(r.repo, dctx.UserID, door.ID, state); err != nil {
+			if err := save(); err != nil {
 				return err
 			}
-			if state.Level >= 5 {
-				_ = r.AwardAchievement(door.ID, dctx.UserID, "level_5")
-			}
-			_ = r.SubmitScore(door.ID, dctx.UserID, "points", dragonScoreValue(state), fmt.Sprintf(`{"level":%d,"duels_won":%d}`, state.Level, state.DuelsWon))
 		}
 		select {
 		case <-ctx.Done():
@@ -1294,33 +1316,6 @@ func (r *Registry) writeSpaceTraderHoldings(stdout io.Writer, state spaceTraderS
 	io.WriteString(stdout, fmt.Sprintf("Net worth estimate: %d\r\n", net))
 }
 
-func dragonForestRun(state *dragonTavernState) (bool, string) {
-	if state == nil {
-		return false, ""
-	}
-	seed := int64(state.ForestRuns*11 + int64(state.Level*7) + state.XP + state.Gold)
-	enemyPower := int64(state.Level*8 + 20 + int(seed%17))
-	playerPower := int64(state.Attack*4 + state.Defense*3 + state.HP/2 + state.Level*6)
-	state.ForestRuns++
-	if playerPower >= enemyPower {
-		xpGain := enemyPower + int64(8+state.Level*2)
-		goldGain := int64(20 + int(seed%16))
-		state.XP += xpGain
-		state.Gold += goldGain
-		levelUps := dragonApplyLevelUps(state)
-		return true, fmt.Sprintf("\r\nForest clear. +%d XP +%d gold. Level ups:%d\r\n", xpGain, goldGain, levelUps)
-	}
-	damage := maxInt(6, int(enemyPower/12))
-	state.HP -= damage
-	if state.HP <= 0 {
-		state.HP = 1
-		loss := minInt64(state.Gold, 20+enemyPower/4)
-		state.Gold -= loss
-		return true, fmt.Sprintf("\r\nAmbushed. You were revived at 1 HP. Lost %d gold.\r\n", loss)
-	}
-	return true, fmt.Sprintf("\r\nHard fight. Lost %d HP.\r\n", damage)
-}
-
 func dragonTavernRun(state *dragonTavernState) (bool, string) {
 	if state == nil {
 		return false, ""
@@ -1428,7 +1423,9 @@ func dragonNormalizeStats(state *dragonTavernState) {
 		state.MaxHP = 20
 	}
 	state.HP = minInt(state.HP, state.MaxHP)
-	if state.HP < 1 {
+	if state.Dead {
+		state.HP = 0
+	} else if state.HP < 1 {
 		state.HP = 1
 	}
 	if state.Attack < 4 {

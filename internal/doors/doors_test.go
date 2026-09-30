@@ -1,9 +1,11 @@
 package doors
 
 import (
+	"bufio"
 	"bytes"
 	"context"
 	"encoding/json"
+	"math/rand"
 	"os"
 	"path/filepath"
 	"strings"
@@ -410,14 +412,17 @@ func TestSpaceTraderWarsFlowPersistsState(t *testing.T) {
 	}
 }
 
-func TestDragonTavernLegendsFlowPersistsState(t *testing.T) {
+func dragonTestRegistry(t *testing.T) (*Registry, repository.DoorRepository, map[string]string) {
+	t.Helper()
 	reg := NewRegistry()
 	repo := repository.NewInMemoryDoorRepository()
 	reg.SetRepository(repo)
 	if err := reg.LoadManifestDir(filepath.Join("..", "..", "doors")); err != nil {
 		t.Fatalf("load manifests: %v", err)
 	}
-
+	prev := newDragonRand
+	newDragonRand = func() *rand.Rand { return rand.New(rand.NewSource(7)) }
+	t.Cleanup(func() { newDragonRand = prev })
 	env := map[string]string{
 		"WOLFBBS_USER_ID":   "66",
 		"WOLFBBS_HANDLE":    "hero",
@@ -426,12 +431,11 @@ func TestDragonTavernLegendsFlowPersistsState(t *testing.T) {
 		"WOLFBBS_TERM_ROWS": "25",
 		"WOLFBBS_ANSI":      "true",
 	}
-	out := bytes.Buffer{}
-	in := bytes.NewBufferString("FXQ")
-	if err := reg.StartDoorByID(context.Background(), "dragon-tavern-legends", in, &out, &out, env); err != nil {
-		t.Fatalf("dragon tavern launch failed: %v", err)
-	}
+	return reg, repo, env
+}
 
+func loadDragonTestState(t *testing.T, repo repository.DoorRepository) dragonTavernState {
+	t.Helper()
 	row, err := repo.GetUserState(66, "dragon-tavern-legends")
 	if err != nil {
 		t.Fatalf("expected persisted user state: %v", err)
@@ -440,9 +444,104 @@ func TestDragonTavernLegendsFlowPersistsState(t *testing.T) {
 	if err := json.Unmarshal([]byte(row.StateJSON), &state); err != nil {
 		t.Fatalf("decode state: %v", err)
 	}
-	if state.ForestRuns < 1 {
-		t.Fatalf("expected forest run count to increase, got %+v", state)
+	return state
+}
+
+func TestDragonTavernLegendsForestFightPersistsState(t *testing.T) {
+	reg, repo, env := dragonTestRegistry(t)
+	strong := defaultDragonTavernState()
+	strong.Attack = 500
+	if err := saveUserStateJSON(repo, 66, "dragon-tavern-legends", strong); err != nil {
+		t.Fatalf("seed state: %v", err)
 	}
+
+	// Forest, look, attack (one hit kills), any key, return to town, quit.
+	out := bytes.Buffer{}
+	in := bytes.NewBufferString("FLA RQ")
+	if err := reg.StartDoorByID(context.Background(), "dragon-tavern-legends", in, &out, &out, env); err != nil {
+		t.Fatalf("dragon tavern launch failed: %v", err)
+	}
+
+	state := loadDragonTestState(t, repo)
+	if state.ForestRuns != 1 || state.ForestFightsUsed != 1 {
+		t.Fatalf("expected one forest fight used, got %+v", state)
+	}
+	if state.XP == 0 && state.Gold == strong.Gold && state.HP == strong.HP {
+		t.Fatalf("forest encounter changed nothing: %+v", state)
+	}
+	if !strings.Contains(out.String(), "The Forest") {
+		t.Fatalf("expected forest screen, got %q", out.String())
+	}
+}
+
+func TestDragonTavernLegendsForestDailyLimit(t *testing.T) {
+	reg, repo, env := dragonTestRegistry(t)
+	tired := defaultDragonTavernState()
+	tired.ForestDay = time.Now().UTC().Format("2006-01-02")
+	tired.ForestFightsUsed = dragonForestFightsPerDay
+	if err := saveUserStateJSON(repo, 66, "dragon-tavern-legends", tired); err != nil {
+		t.Fatalf("seed state: %v", err)
+	}
+
+	out := bytes.Buffer{}
+	in := bytes.NewBufferString("FL RQ")
+	if err := reg.StartDoorByID(context.Background(), "dragon-tavern-legends", in, &out, &out, env); err != nil {
+		t.Fatalf("dragon tavern launch failed: %v", err)
+	}
+	if !strings.Contains(out.String(), "too tired") {
+		t.Fatalf("expected daily limit message, got %q", out.String())
+	}
+}
+
+func TestDragonTavernLegendsDeadHeroWaitsForTomorrow(t *testing.T) {
+	reg, repo, env := dragonTestRegistry(t)
+	dead := defaultDragonTavernState()
+	dead.ForestDay = time.Now().UTC().Format("2006-01-02")
+	dead.Dead = true
+	dead.HP = 0
+	if err := saveUserStateJSON(repo, 66, "dragon-tavern-legends", dead); err != nil {
+		t.Fatalf("seed state: %v", err)
+	}
+
+	out := bytes.Buffer{}
+	in := bytes.NewBufferString("F Q")
+	if err := reg.StartDoorByID(context.Background(), "dragon-tavern-legends", in, &out, &out, env); err != nil {
+		t.Fatalf("dragon tavern launch failed: %v", err)
+	}
+	if !strings.Contains(out.String(), "The dead cannot do that") {
+		t.Fatalf("expected dead hero to be turned away, got %q", out.String())
+	}
+
+	state := dead
+	dragonResetForestDay(&state, time.Now().UTC().AddDate(0, 0, 1))
+	if state.Dead || state.HP != state.MaxHP || state.ForestFightsUsed != 0 {
+		t.Fatalf("expected revival on a new day, got %+v", state)
+	}
+}
+
+func TestDragonForestWeakHeroCanDie(t *testing.T) {
+	rng := rand.New(rand.NewSource(3))
+	for try := 0; try < 20; try++ {
+		state := defaultDragonTavernState()
+		state.HP, state.Attack, state.Defense = 1, 1, 0
+		state.Gold, state.XP = 90, 50
+		reader := bufio.NewReader(strings.NewReader(strings.Repeat("A", 200)))
+		out := bytes.Buffer{}
+		if err := dragonForestEncounter(reader, &out, &state, rng); err != nil {
+			t.Fatalf("encounter: %v", err)
+		}
+		if !state.Dead {
+			continue
+		}
+		if state.Gold != 0 || state.XP != 45 || state.Deaths != 1 {
+			t.Fatalf("expected death penalty, got %+v", state)
+		}
+		if !strings.Contains(out.String(), "You have been slain") {
+			t.Fatalf("expected death message, got %q", out.String())
+		}
+		return
+	}
+	t.Fatal("a 1 HP hero never died in 20 forest encounters")
 }
 
 func TestVotingBoothCreateAndVotePersists(t *testing.T) {
