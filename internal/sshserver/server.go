@@ -1825,6 +1825,14 @@ func activeLineInputState(reader *bufio.Reader) (*lineInputState, bool) {
 	return state, ok && state != nil && state.out != nil
 }
 
+// DEC save/restore cursor (ESC 7 / ESC 8). The SCO forms (CSI s / CSI u) are
+// ignored by macOS Terminal.app, which made every keystroke re-print the whole
+// line ("MMoMooMoos...") at prompts.
+const (
+	cursorSave    = "\x1b7"
+	cursorRestore = "\x1b8"
+)
+
 func redrawLineInput(state *lineInputState, text string, cursor int) {
 	if state == nil || state.out == nil || !state.ansi {
 		return
@@ -1835,7 +1843,7 @@ func redrawLineInput(state *lineInputState, text string, cursor int) {
 	if cursor > len(text) {
 		cursor = len(text)
 	}
-	_, _ = io.WriteString(state.out, "\x1b[u\x1b[K")
+	_, _ = io.WriteString(state.out, cursorRestore+"\x1b[K")
 	_, _ = io.WriteString(state.out, text)
 	_, _ = io.WriteString(state.out, "\x1b[K")
 	if back := len(text) - cursor; back > 0 {
@@ -1883,7 +1891,7 @@ func readLine(reader *bufio.Reader, max int) (string, error) {
 	cursor := 0
 	lineState, hasLineState := activeLineInputState(reader)
 	if hasLineState && lineState.ansi {
-		_, _ = io.WriteString(lineState.out, "\x1b[s")
+		_, _ = io.WriteString(lineState.out, cursorSave)
 	}
 	displayText := func() string {
 		if !hasLineState || !lineState.maskInput {

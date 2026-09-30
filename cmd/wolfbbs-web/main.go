@@ -9999,6 +9999,7 @@ func (a *webApp) handleDoors(w http.ResponseWriter, r *http.Request) {
 ` + messageBlock + `
 <h1>Door Cockpit</h1>
 <p>One place for favorites, recommendations, trophies, turn budgets, policy-aware door directory, and modern internet gateway doors.</p>
+<p class="wolfbbs-callout"><strong>Doors are played in the terminal.</strong> This page is the catalog and scoreboard. To play, connect to the BBS over SSH (port 2222 unless your sysop changed it), sign in as <code>` + htmlEscape(user.Handle) + `</code>, and press <kbd>D</kbd> for doors.</p>
 <section class="wolfbbs-kpi-grid">
 <article class="wolfbbs-kpi-card"><strong>` + strconv.Itoa(len(catalog)) + `</strong><span>doors loaded</span></article>
 <article class="wolfbbs-kpi-card"><strong>` + strconv.Itoa(totalFavorites) + `</strong><span>favorites</span></article>
