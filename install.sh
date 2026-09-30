@@ -1091,7 +1091,7 @@ Options:
   --mailin-port <port>      inbound mail webhook port (default: 8091)
   --uninstall               stop/remove services
   --upgrade                 pull/restart services in existing install
-  --rapid-upgrade           local rebuild/restart for fast dev iteration
+  --rapid-upgrade           pull merged changes, then rebuild/restart from this checkout
   --status                  show service status and endpoints
   --doctor                  run non-mutating preflight + install health diagnostics
   --debug-bundle            write a detailed diagnostics bundle under <prefix>
@@ -2972,6 +2972,58 @@ docker_compose_pull_restart() {
   run_retry 3 5 "cd '$WORK_DIR' && $cmd $(compose_file_flags)${env_flag} up -d --build --remove-orphans"
 }
 
+# "Merge on GitHub, then --rapid-upgrade" should build what was merged, but
+# the rebuild uses the local checkout as-is. Fast-forward it from origin first
+# when that is safe: a git checkout on a branch, no uncommitted tracked
+# changes, and no local commits that origin lacks. Otherwise say why and build
+# what is there. WOLFBBS_RAPID_UPGRADE_NO_PULL=1 skips this.
+sync_checkout_for_rapid_upgrade() {
+  local dir="$WORK_DIR" branch before after
+  if [[ "${WOLFBBS_RAPID_UPGRADE_NO_PULL:-}" == "1" ]]; then
+    log "Rapid upgrade: not pulling (WOLFBBS_RAPID_UPGRADE_NO_PULL=1); building ${dir} as-is"
+    return 0
+  fi
+  # Only the checkout's own root: a compose dir nested inside some other repo
+  # (a managed app dir under a project folder) is not ours to move.
+  local toplevel
+  toplevel="$(git -C "$dir" rev-parse --show-toplevel 2>/dev/null || true)"
+  if [[ -z "$toplevel" || "$(cd "$toplevel" && pwd -P)" != "$(cd "$dir" && pwd -P)" ]]; then
+    return 0
+  fi
+  if ! git -C "$dir" remote get-url origin >/dev/null 2>&1; then
+    log "Rapid upgrade: ${dir} has no origin remote; building it as-is"
+    return 0
+  fi
+  branch="$(git -C "$dir" symbolic-ref --quiet --short HEAD 2>/dev/null || true)"
+  if [[ -z "$branch" ]]; then
+    log "Rapid upgrade: ${dir} is not on a branch; building it as-is without pulling."
+    return 0
+  fi
+  if [[ "$DRY_RUN" == "true" ]]; then
+    log "DRY-RUN: would fast-forward ${dir} (${branch}) from origin/${branch}"
+    return 0
+  fi
+  if ! git -C "$dir" fetch --quiet origin "$branch"; then
+    log "Rapid upgrade: could not fetch origin/${branch}; building ${dir} as-is."
+    return 0
+  fi
+  if [[ -n "$(git -C "$dir" status --porcelain --untracked-files=no)" ]]; then
+    log "Rapid upgrade: ${dir} has uncommitted changes; building them without pulling origin/${branch}."
+    return 0
+  fi
+  before="$(git -C "$dir" rev-parse --short HEAD)"
+  if ! git -C "$dir" merge --quiet --ff-only "origin/${branch}" >/dev/null 2>&1; then
+    log "Rapid upgrade: ${branch} has local commits that origin/${branch} lacks; building ${dir} without pulling."
+    return 0
+  fi
+  after="$(git -C "$dir" rev-parse --short HEAD)"
+  if [[ "$before" == "$after" ]]; then
+    log "Rapid upgrade: ${dir} already matches origin/${branch} (${after})"
+  else
+    log "Rapid upgrade: pulled origin/${branch} into ${dir} (${before} -> ${after})"
+  fi
+}
+
 docker_compose_rapid_upgrade() {
   if [[ "$DRY_RUN" == "true" ]]; then
     log "DRY-RUN: would rebuild and restart compose services from local source"
@@ -4765,6 +4817,7 @@ main() {
       ENV_FILE="${PREFIX}/.env"
     fi
     ensure_runtime_env_defaults "$ENV_FILE"
+    sync_checkout_for_rapid_upgrade
     docker_compose_rapid_upgrade
     verify_install
     echo "Rapid upgrade complete."

@@ -389,7 +389,50 @@ EOF
       "rapid-upgrade should preserve path casing in compose working directory"
   fi
 
-  run_installer_case "$installer_dir" "$fake_bin" "$docker_log" "$curl_log" "$nc_log" "$colima_log" "$out_file" \
+  # Merged on origin, then --rapid-upgrade: the checkout must be fast-forwarded
+  # before the rebuild, or the new images silently carry the old code.
+  local prefix_pull="${TMP_WORK}/RapidPull"
+  local pull_origin="${TMP_WORK}/rapid-origin.git"
+  local pull_other="${TMP_WORK}/rapid-other"
+  mkdir -p "$prefix_pull"
+  git init -q --bare -b main "$pull_origin"
+  git clone -q "$pull_origin" "${prefix_pull}/app" 2>/dev/null
+  cp "${prefix_rapid}/app/docker-compose.yml" "${prefix_pull}/app/docker-compose.yml"
+  cp "${prefix_rapid}/.env" "${prefix_pull}/.env"
+  git -C "${prefix_pull}/app" add docker-compose.yml
+  git -C "${prefix_pull}/app" -c user.name=t -c user.email=t@t commit -q -m base
+  git -C "${prefix_pull}/app" push -q origin main
+  git clone -q "$pull_origin" "$pull_other"
+  echo "# merged later" >> "${pull_other}/docker-compose.yml"
+  git -C "$pull_other" -c user.name=t -c user.email=t@t commit -q -am merged
+  git -C "$pull_other" push -q origin main
+  local merged_head
+  merged_head="$(git -C "$pull_other" rev-parse HEAD)"
+  # The shared fake runtime hides git; these cases need the real one.
+  local fake_bin_git="${TMP_WORK}/fakebin-git"
+  cp -R "$fake_bin" "$fake_bin_git"
+  printf '#!/usr/bin/env bash\nexec "%s" "$@"\n' "$(command -v git)" > "${fake_bin_git}/git"
+  chmod +x "${fake_bin_git}/git"
+  run_installer_case "$installer_dir" "$fake_bin_git" "$docker_log" "$curl_log" "$nc_log" "$colima_log" "$out_file" \
+    --yes --rapid-upgrade --prefix "$prefix_pull"
+  if [[ "$(git -C "${prefix_pull}/app" rev-parse HEAD)" != "$merged_head" ]]; then
+    fail "rapid-upgrade should fast-forward the checkout to origin before rebuilding"
+  fi
+  assert_contains "$out_file" "Rapid upgrade: pulled origin/main" \
+    "rapid-upgrade should say it pulled merged changes"
+
+  echo "local edit" >> "${prefix_pull}/app/docker-compose.yml"
+  git -C "$pull_other" -c user.name=t -c user.email=t@t commit -q --allow-empty -m later
+  git -C "$pull_other" push -q origin main
+  run_installer_case "$installer_dir" "$fake_bin_git" "$docker_log" "$curl_log" "$nc_log" "$colima_log" "$out_file" \
+    --yes --rapid-upgrade --prefix "$prefix_pull"
+  if [[ "$(git -C "${prefix_pull}/app" rev-parse HEAD)" != "$merged_head" ]]; then
+    fail "rapid-upgrade must not pull over uncommitted changes"
+  fi
+  assert_contains "$out_file" "has uncommitted changes" \
+    "rapid-upgrade should explain why it did not pull"
+
+  run_installer_case "$installer_dir" "$fake_bin_git" "$docker_log" "$curl_log" "$nc_log" "$colima_log" "$out_file" \
     --yes --upgrade --prefix "$prefix_rapid"
   assert_contains "$out_file" "pull" \
     "upgrade should pull published images before restart"
