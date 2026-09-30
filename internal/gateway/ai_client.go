@@ -21,6 +21,9 @@ type AIConfig struct {
 	SystemPrompt string
 	Timeout      time.Duration
 	MaxTokens    int
+	// NoThinking asks llama.cpp-style servers to skip the model's reasoning
+	// pass, which otherwise can spend the whole token budget before answering.
+	NoThinking bool
 }
 
 type AIClient struct {
@@ -81,6 +84,9 @@ func (c *AIClient) Complete(ctx context.Context, prompt string) (string, error) 
 		"max_tokens":  c.cfg.MaxTokens,
 		"temperature": 0.6,
 	}
+	if c.cfg.NoThinking {
+		payload["chat_template_kwargs"] = map[string]interface{}{"enable_thinking": false}
+	}
 	body, err := json.Marshal(payload)
 	if err != nil {
 		return "", err
@@ -115,7 +121,8 @@ func (c *AIClient) Complete(ctx context.Context, prompt string) (string, error) 
 
 	var decoded struct {
 		Choices []struct {
-			Message struct {
+			FinishReason string `json:"finish_reason"`
+			Message      struct {
 				Content string `json:"content"`
 			} `json:"message"`
 		} `json:"choices"`
@@ -128,6 +135,9 @@ func (c *AIClient) Complete(ctx context.Context, prompt string) (string, error) 
 	}
 	content := strings.TrimSpace(decoded.Choices[0].Message.Content)
 	if content == "" {
+		if decoded.Choices[0].FinishReason == "length" {
+			return "", errors.New("the model ran out of tokens before answering; raise Max Tokens or turn on Skip thinking in /admin/gateways")
+		}
 		return "", errors.New("ai response was empty")
 	}
 	return content, nil

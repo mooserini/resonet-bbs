@@ -333,17 +333,21 @@ func (s *Server) runAdminGatewayDeck(sess gssh.Session, reader *bufio.Reader, te
 		cfg := s.effectiveGatewayConfig()
 		webCfg := s.activeWebFetchConfig()
 		aiCfg := s.loadAIGatewaySettings()
+		aiPolicy := gateway.LoadAIPolicy(s.aiSettingsStore())
+		aiUsers := gateway.FormatAIAllowedHandles(aiPolicy.AllowedHandles)
 		lines := []string{
 			fmt.Sprintf("SMTP: %s:%d user=%s from=%s", defaultIfBlank(cfg.Host, "(unset)"), cfg.Port, defaultIfBlank(cfg.User, "(unset)"), defaultIfBlank(cfg.FromDomain, "(unset)")),
 			fmt.Sprintf("Mail limits: recipients=%d bytes=%d require_verified=%s", cfg.MaxRecipients, cfg.MaxMessageBytes, boolText(s.requireVerifiedEmail())),
 			fmt.Sprintf("Web gateway: timeout=%ss max_bytes=%d", strconv.Itoa(int(webCfg.Timeout.Seconds())), webCfg.MaxBodyBytes),
 			fmt.Sprintf("AI: enabled=%s base=%s model=%s timeout=%ds max_tokens=%d key=%s", boolText(aiCfg.Enabled), clampForTTY(aiCfg.BaseURL, 16), clampForTTY(aiCfg.Model, 16), aiCfg.TimeoutSec, aiCfg.MaxTokens, boolText(strings.TrimSpace(aiCfg.APIKey) != "")),
+			fmt.Sprintf("AI access: sysops + %s | daily cap=%d | thinking=%s", clampForTTY(defaultIfBlank(aiUsers, "(nobody else)"), 24), aiPolicy.DailyCap, boolText(!aiPolicy.NoThinking)),
 			"",
 			"SMTP <host>|<port>|<user>|<from_domain>|<max_recipients>|<max_bytes>",
 			"SMTPPASS <password>",
 			"WEB <timeout_sec>|<max_bytes>",
 			"AI <on|off>|<base_url>|<model>|<timeout_sec>|<max_tokens>",
-			"AIPASS <api_key> | AIPROMPT <system prompt> | Q",
+			"AIPASS <api_key> | AIPROMPT <system prompt>",
+			"AIUSERS <handle,handle> | AICAP <n, 0=no limit> | AITHINK <on|off> | Q",
 		}
 		writeClear(sess, ansiEnabled)
 		renderFrame(sess, termWidth, renderWidth, ui.RenderTopBarWithClock(renderWidth, "Admin / Gateways", actor, time.Now(), nodeLabel, th, time24h)+"\r\n", ansiEnabled, encoding)
@@ -465,8 +469,26 @@ func (s *Server) runAdminGatewayDeck(sess gssh.Session, reader *bufio.Reader, te
 			}
 			recordAudit(s.admin, actor, "gateway.ai", "update_ai_prompt", "")
 			adminPause(sess, reader, touch, "AI system prompt updated.")
+		case strings.HasPrefix(upper, "AIUSERS ") || upper == "AIUSERS", strings.HasPrefix(upper, "AICAP "), strings.HasPrefix(upper, "AITHINK "):
+			verb, arg, _ := strings.Cut(cmd, " ")
+			arg = strings.TrimSpace(arg)
+			switch strings.ToUpper(verb) {
+			case "AIUSERS":
+				aiPolicy.AllowedHandles = gateway.ParseAIAllowedHandles(arg)
+			case "AICAP":
+				aiPolicy.DailyCap = clampInt(parseIntWithDefault(arg, aiPolicy.DailyCap), 0, 10000)
+			case "AITHINK":
+				// "AITHINK off" means skip thinking.
+				aiPolicy.NoThinking = !(strings.EqualFold(arg, "on") || strings.EqualFold(arg, "true") || arg == "1")
+			}
+			if err := gateway.SaveAIPolicy(s.aiSettingsStore(), aiPolicy); err != nil {
+				adminPause(sess, reader, touch, "AI access save failed: "+err.Error())
+				continue
+			}
+			recordAudit(s.admin, actor, "gateway.ai", "update_ai_access", "users="+gateway.FormatAIAllowedHandles(aiPolicy.AllowedHandles)+" cap="+strconv.Itoa(aiPolicy.DailyCap))
+			adminPause(sess, reader, touch, "AI access updated.")
 		default:
-			adminPause(sess, reader, touch, "Use SMTP, SMTPPASS, WEB, AI, AIPASS, AIPROMPT, or Q.")
+			adminPause(sess, reader, touch, "Use SMTP, SMTPPASS, WEB, AI, AIPASS, AIPROMPT, AIUSERS, AICAP, AITHINK, or Q.")
 		}
 	}
 }
