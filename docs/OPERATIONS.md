@@ -123,3 +123,21 @@ After a public release, switch to the triage loop in [POST_RELEASE_TRIAGE.md](PO
 - [Feature Reference](feature-reference.md)
 - [Post-Release Triage](POST_RELEASE_TRIAGE.md)
 - [Next Feature Wave](NEXT_FEATURE_WAVE.md)
+
+## Backups and restore
+
+Everything that can't be rebuilt from the repo is the database (the `wolfbbs_pgdata` volume) and `<prefix>/.env`. Back both up with:
+
+```bash
+bash bootstrap.sh --backup
+```
+
+This writes `<prefix>/backups/<timestamp>/` (folder mode 700) containing `database.dump` (pg_dump custom format), a copy of `.env`, and a `MANIFEST.txt` with the app commit and checksum. The newest 14 backups are kept; set `WOLFBBS_BACKUP_KEEP` to change that. Settings saved in `/admin/config` and `/admin/gateways` live in the database, so they're included.
+
+To roll back:
+
+```bash
+bash bootstrap.sh --restore <prefix>/backups/<timestamp>
+```
+
+Restore asks you to type `WIPE`, takes a fresh safety backup of the current database first, stops the app containers, restores, and starts them again. The live `.env` is left alone (its database password must match the running Postgres volume); the backup's `env` copy is there if you are rebuilding from scratch. Copy the `backups` folder somewhere off this machine now and then; a backup on the same disk doesn't survive a dead disk.

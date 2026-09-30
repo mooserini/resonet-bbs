@@ -288,6 +288,8 @@ When run without flags in an interactive terminal, `install.sh` opens an action 
 - `--logs`: show recent service logs
 - `--repair`: self-heal install (ensure deps/env, rebuild, verify)
 - `--reset-2fa <handle>`: turn off 2FA for a locked-out account (local machine only)
+- `--backup`: save a database dump and `.env` copy to `<prefix>/backups/<timestamp>`
+- `--restore <backup-dir>`: restore the database from a backup (typed `WIPE`; takes a safety backup first)
 - `--deps-only`: install/check prerequisites and Docker runtime only
 - `--upgrade`: pull/rebuild/restart stack in existing install
 - `--rapid-upgrade`: rebuild/restart from local source (no image pull) for fast iteration
