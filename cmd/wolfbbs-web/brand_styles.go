@@ -235,6 +235,28 @@ p.wolfbbs-nav-row,body > p:has(> a),.wolfbbs-section-nav{
 :root[data-phosphor="copper"]{--crt-fg:#e29b68;--crt-dim:#8a472c;--crt-bg:#140d07}
 :root[data-phosphor="violet"]{--crt-fg:#d946ef;--crt-dim:#8c2aa1;--crt-bg:#120417}
 
+/* Sysop tools: hidden unless a moderator or sysop ticks the checkbox. */
+:root:not([data-sysop-tools="on"]) .wolfbbs-table-toolbar,
+:root:not([data-sysop-tools="on"]) .wolfbbs-table-round3,
+:root:not([data-sysop-tools="on"]) .wolfbbs-row-inspector,
+:root:not([data-sysop-tools="on"]) .wolfbbs-ux20-compass,
+:root:not([data-sysop-tools="on"]) #wolfbbsUXDiagButton,
+:root:not([data-sysop-tools="on"]) #wolfbbsBugButton,
+:root:not([data-sysop-tools="on"]) #wolfbbsFeedbackButton{display:none}
+#wolfbbsSysopTools{
+  position:static;
+  display:inline-flex;flex-direction:row;align-items:center;gap:6px;
+  width:auto;margin:0 0 8px;white-space:nowrap;
+  padding:3px 9px;
+  font-family:var(--rm-font-display);font-size:.7rem;
+  color:var(--rm-sub);
+  background-color:var(--rm-ink);
+  border:1px solid var(--rm-line-strong);
+  cursor:pointer;
+}
+:root[data-sysop-tools="on"] #wolfbbsSysopTools{color:var(--rm-green);border-color:var(--rm-green)}
+#wolfbbsSysopTools input{display:inline-block;width:auto;min-height:0;margin:0;padding:0}
+
 /* CRT banner */
 .wolfbbs-crt{
   margin:14px 0;
