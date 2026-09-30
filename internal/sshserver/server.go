@@ -406,14 +406,19 @@ func (s *Server) handleSession(sess gssh.Session) {
 				state = stateGuestTour
 				continue
 			}
-			io.WriteString(sess, "Password: ")
+			var pass string
 			restoreLineMask := setLineInputMask(reader, true)
-			pass, err := readLine(reader, 64)
-			restoreLineMask()
-			if err != nil {
-				return
+			// An empty password asks again rather than dropping back to Handle.
+			for attempt := 0; attempt < 3 && strings.TrimSpace(pass) == "" && handle != ""; attempt++ {
+				io.WriteString(sess, "Password: ")
+				pass, err = readLine(reader, 64)
+				if err != nil {
+					restoreLineMask()
+					return
+				}
+				touch()
 			}
-			touch()
+			restoreLineMask()
 			pass = strings.TrimSpace(pass)
 			if handle == "" || pass == "" {
 				io.WriteString(sess, "\r\nMissing input. Press any key to retry.\r\n")
@@ -1780,6 +1785,19 @@ type lineInputState struct {
 
 var lineInputRegistry sync.Map
 
+// pendingCRLF remembers readers whose last line ended on a bare CR. Some
+// clients send CR and LF (or CR NUL) as separate packets, so the LF can arrive
+// after the line was returned and be read as an empty next answer (the
+// password prompt bounced straight back to Handle).
+var pendingCRLF sync.Map
+
+func takeStrayLineEnding(reader *bufio.Reader, ch byte) bool {
+	if _, pending := pendingCRLF.LoadAndDelete(reader); pending && (ch == '\n' || ch == 0) {
+		return true
+	}
+	return false
+}
+
 func registerLineInput(reader *bufio.Reader, out io.Writer, ansi bool) {
 	if reader == nil || out == nil {
 		return
@@ -1914,10 +1932,17 @@ func readLine(reader *bufio.Reader, max int) (string, error) {
 		if err != nil {
 			return "", err
 		}
+		if len(buf) == 0 && takeStrayLineEnding(reader, ch) {
+			continue
+		}
 		if ch == '\r' || ch == '\n' {
 			if ch == '\r' {
-				if next, err := reader.Peek(1); err == nil && len(next) > 0 && next[0] == '\n' {
-					_, _ = reader.ReadByte()
+				if reader.Buffered() > 0 {
+					if next, err := reader.Peek(1); err == nil && len(next) > 0 && (next[0] == '\n' || next[0] == 0) {
+						_, _ = reader.ReadByte()
+					}
+				} else {
+					pendingCRLF.Store(reader, true)
 				}
 			}
 			if hasLineState {
@@ -2060,6 +2085,11 @@ func readKey(reader *bufio.Reader) (string, error) {
 	ch, err := reader.ReadByte()
 	if err != nil {
 		return "", err
+	}
+	if takeStrayLineEnding(reader, ch) {
+		if ch, err = reader.ReadByte(); err != nil {
+			return "", err
+		}
 	}
 	readBufferedByte := func() (byte, bool) {
 		if reader.Buffered() == 0 {
