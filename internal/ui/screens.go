@@ -81,10 +81,22 @@ func RenderWelcome(width int) string {
 }
 
 func RenderWelcomeForProfile(width int, compact bool, hints []string) string {
+	return RenderWelcomeForSite(width, "", compact, hints)
+}
+
+// RenderWelcomeForSite draws the first screen callers see, titled with the
+// board's configured name (site.name / WOLFBBS_BBS_NAME).
+func RenderWelcomeForSite(width int, site string, compact bool, hints []string) string {
 	width = normalizeScreenWidth(width)
+	site = strings.TrimSpace(site)
+	if site == "" {
+		site = "WolfBBS"
+	}
+	copyright := fmt.Sprintf("%s (c) %d", site, time.Now().Year())
+	title := site + " Welcome"
 	if compact {
 		lines := []string{
-			"wolfbbs (c) 2026",
+			copyright,
 			"Compact session profile active.",
 			"Using shorter, safer output for this terminal.",
 		}
@@ -96,7 +108,7 @@ func RenderWelcomeForProfile(width int, compact bool, hints []string) string {
 			lines = append(lines, "- "+trimmed)
 		}
 		lines = append(lines, "Press ESC to quit, any other key to continue.")
-		panel := renderPanel(width, "WolfBBS Welcome", lines, FgYellow)
+		panel := renderPanel(width, title, lines, FgYellow)
 		var b strings.Builder
 		for _, line := range strings.Split(strings.TrimSuffix(panel, "\r\n"), "\r\n") {
 			b.WriteString(FgYellow)
@@ -106,14 +118,14 @@ func RenderWelcomeForProfile(width int, compact bool, hints []string) string {
 		}
 		return b.String()
 	}
-	lines := append([]string{}, welcomeWolfArt(width)...)
+	lines := append([]string{}, welcomeEmblemArt(width)...)
 	lines = append(lines,
 		"",
-		"wolfbbs (c) 2026",
+		copyright,
 		"Wildcat-era glow, modern rails, node-ready ANSI.",
 		"Press ESC to quit, any other key to continue.",
 	)
-	panel := renderPanel(width, "WolfBBS Welcome", lines, FgYellow)
+	panel := renderPanel(width, title, lines, FgYellow)
 	var b strings.Builder
 	for _, line := range strings.Split(strings.TrimSuffix(panel, "\r\n"), "\r\n") {
 		b.WriteString(FgYellow)
@@ -121,7 +133,7 @@ func RenderWelcomeForProfile(width int, compact bool, hints []string) string {
 		b.WriteString(Reset)
 		b.WriteString("\r\n")
 	}
-	b.WriteString(FgGreen + CenterText(width, "wolfbbs (c) 2026") + Reset + "\r\n")
+	b.WriteString(FgGreen + CenterText(width, copyright) + Reset + "\r\n")
 	return b.String()
 }
 
@@ -1598,30 +1610,3 @@ func formatDoorRow(width int, item DoorMenuItem, turns, flags string) string {
 	}
 }
 
-func welcomeWolfArt(width int) []string {
-	switch {
-	case normalizeScreenWidth(width) >= 72:
-		return []string{
-			"                           .     .",
-			"                          / \\.-./ \\",
-			"                         / /\\_ _/\\\\ \\",
-			"                         |/  o o  \\|",
-			"                         ( == ^ == )",
-			"                          )  ---  (",
-			"                         /         \\",
-		}
-	case normalizeScreenWidth(width) >= 54:
-		return []string{
-			"                       /\\_/\\\\",
-			"                      ( o.o )",
-			"                       > ^ <",
-			"                    WolfBBS Caller",
-		}
-	default:
-		return []string{
-			"                    /\\_/\\\\",
-			"                   ( o.o )",
-			"                    > ^ <",
-		}
-	}
-}

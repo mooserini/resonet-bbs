@@ -1,6 +1,7 @@
 package ui
 
 import (
+	"fmt"
 	"strings"
 	"testing"
 	"time"
@@ -386,11 +387,12 @@ func TestRenderCompactWelcomeAndLoginPrompt(t *testing.T) {
 	}
 }
 
-func TestRenderWelcomeShowsWolfAndCopyright(t *testing.T) {
-	rendered := RenderWelcome(80)
+func TestRenderWelcomeShowsSiteNameEmblemAndCopyright(t *testing.T) {
+	rendered := RenderWelcomeForSite(80, "ResoNET", false, nil)
 	for _, want := range []string{
-		"WolfBBS Welcome",
-		"wolfbbs (c) 2026",
+		"ResoNET Welcome",
+		fmt.Sprintf("ResoNET (c) %d", time.Now().Year()),
+		"─┼─",
 		"Wildcat-era glow, modern rails, node-ready ANSI.",
 		"Press ESC to quit, any other key to continue.",
 	} {
