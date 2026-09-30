@@ -21,6 +21,7 @@ import (
 	"time"
 
 	gssh "github.com/gliderlabs/ssh"
+	gossh "golang.org/x/crypto/ssh"
 	"wolfbbs/internal/acs"
 	"wolfbbs/internal/auth"
 	"wolfbbs/internal/chat"
@@ -110,6 +111,17 @@ func New(address string, logger *slog.Logger, authSvc *auth.Service) *Server {
 		Handler:     s.handleSession,
 		IdleTimeout: 10 * time.Minute,
 		MaxTimeout:  30 * time.Minute,
+	}
+	keyPath := hostKeyPath()
+	if signer, created, err := loadOrCreateHostKey(keyPath); err != nil {
+		if logger != nil {
+			logger.Warn("ssh host key unavailable; using a temporary key (clients will see a changed host key after restart)", "path", keyPath, "error", err)
+		}
+	} else {
+		s.server.AddHostKey(signer)
+		if logger != nil {
+			logger.Info("ssh host key ready", "path", keyPath, "created", created, "fingerprint", gossh.FingerprintSHA256(signer.PublicKey()))
+		}
 	}
 	return s
 }

@@ -46,6 +46,9 @@ services:
     depends_on:
       postgres:
         condition: service_healthy
+    volumes:
+      # Stable SSH host key, so clients don't see "host identification changed" after rebuilds.
+      - sshkeys:/app/.wolfbbs/ssh
     healthcheck:
       test: ["CMD", "nc", "-z", "127.0.0.1", "2222"]
       interval: 5s
@@ -165,3 +168,4 @@ services:
       retries: 12
 volumes:
   pgdata:
+  sshkeys:

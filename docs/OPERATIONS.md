@@ -132,7 +132,7 @@ Everything that can't be rebuilt from the repo is the database (the `wolfbbs_pgd
 bash bootstrap.sh --backup
 ```
 
-This writes `<prefix>/backups/<timestamp>/` (folder mode 700) containing `database.dump` (pg_dump custom format), a copy of `.env`, and a `MANIFEST.txt` with the app commit and checksum. The newest 14 backups are kept; set `WOLFBBS_BACKUP_KEEP` to change that. Settings saved in `/admin/config` and `/admin/gateways` live in the database, so they're included.
+This writes `<prefix>/backups/<timestamp>/` (folder mode 700) containing `database.dump` (pg_dump custom format), a copy of `.env`, the SSH host key (`ssh_host_ed25519_key`), and a `MANIFEST.txt` with the app commit and checksum. The newest 14 backups are kept; set `WOLFBBS_BACKUP_KEEP` to change that. Settings saved in `/admin/config` and `/admin/gateways` live in the database, so they're included.
 
 To roll back:
 
@@ -141,3 +141,7 @@ bash bootstrap.sh --restore <prefix>/backups/<timestamp>
 ```
 
 Restore asks you to type `WIPE`, takes a fresh safety backup of the current database first, stops the app containers, restores, and starts them again. The live `.env` is left alone (its database password must match the running Postgres volume); the backup's `env` copy is there if you are rebuilding from scratch. Copy the `backups` folder somewhere off this machine now and then; a backup on the same disk doesn't survive a dead disk.
+
+## SSH host key
+
+The SSH board keeps its host key on the `sshkeys` Docker volume (`/app/.wolfbbs/ssh/ssh_host_ed25519_key` inside the `bbs` container), so rebuilds and restarts keep the same identity and SSH clients don't warn that the host changed. It is created on first start. Set `WOLFBBS_SSH_HOST_KEY` to use a different path. Installs from before this change had a new key on every start; clear the old entry once with `ssh-keygen -R '[localhost]:2222'`.
