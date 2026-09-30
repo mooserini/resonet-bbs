@@ -1042,7 +1042,14 @@ func (s *Server) handleSession(sess gssh.Session) {
 				"WOLFBBS_TZ":              time.Now().Location().String(),
 			})
 			cancel()
-			if err != nil {
+			if errors.Is(err, context.DeadlineExceeded) {
+				// The door's per-session time limit (max_run_seconds) ran out;
+				// that's a normal end, not a crash.
+				recordAudit(s.admin, currentUser, strings.ToUpper(choice), "door_timeout", "time limit reached")
+				io.WriteString(sess, "\r\nTime's up for this door session. A sysop can raise the limit in the door settings.\r\nPress any key to continue.")
+				_, _ = readKey(reader)
+				touch()
+			} else if err != nil {
 				recordAudit(s.admin, currentUser, strings.ToUpper(choice), "door_failure", err.Error())
 				io.WriteString(sess, "\r\nDoor launch failed: "+err.Error()+"\r\nPress any key to continue.")
 				_, _ = readKey(reader)
@@ -2345,12 +2352,42 @@ func limitCommandOutput(raw string, maxRunes int) string {
 	return string(runes[:maxRunes]) + "\n...[truncated]"
 }
 
+// appUpgradeUnavailableReason reports why the in-BBS upgrade can't run here,
+// or "" if the opt-in mounts (docker-compose.app-upgrade.yml) are present.
+func appUpgradeUnavailableReason() string {
+	if strings.TrimSpace(os.Getenv(appUpgradeCommandEnv)) == "" {
+		return ""
+	}
+	workDir := strings.TrimSpace(os.Getenv(appUpgradeWorkDirEnv))
+	if workDir != "" {
+		if info, err := os.Stat(workDir); err != nil || !info.IsDir() {
+			return "app folder " + workDir + " is not mounted"
+		}
+	}
+	if _, err := os.Stat("/var/run/docker.sock"); err != nil {
+		return "no Docker socket"
+	}
+	return ""
+}
+
 func (s *Server) runAppUpgrade(sess gssh.Session, reader *bufio.Reader, handle string, account *domain.User, touch func()) {
 	if touch == nil {
 		touch = func() {}
 	}
 	if !evaluateAccess("role=sysop", account, handle, map[string]string{"area": "system", "mode": "app_upgrade"}, true, s.logger) {
 		io.WriteString(sess, "\r\n/app upgrade is sysop-only. Press any key.")
+		_, _ = readKey(reader)
+		touch()
+		return
+	}
+	if reason := appUpgradeUnavailableReason(); reason != "" {
+		// Without the opt-in Docker socket and host mounts the command can only
+		// fail (e.g. "chdir /wolfbbs-host: no such file or directory").
+		io.WriteString(sess, "\r\nIn-BBS upgrade is off on this install ("+reason+").")
+		io.WriteString(sess, "\r\nTo upgrade, run this on the host:  bash bootstrap.sh --rapid-upgrade")
+		io.WriteString(sess, "\r\nTo turn in-BBS upgrades on, set WOLFBBS_ENABLE_APP_UPGRADE=true in .env")
+		io.WriteString(sess, "\r\nand run  bash bootstrap.sh --start  (this gives the BBS the Docker socket).")
+		io.WriteString(sess, "\r\nPress any key.")
 		_, _ = readKey(reader)
 		touch()
 		return

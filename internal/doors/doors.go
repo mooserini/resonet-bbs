@@ -312,10 +312,14 @@ func (r *Registry) Launch(ctx context.Context, hotkey string, stdin io.Reader, s
 
 	_ = r.touchUserMeta(doorCtx.UserID, door.ID)
 	if runErr != nil {
+		eventType := "error"
+		if errors.Is(runErr, context.DeadlineExceeded) {
+			eventType = "timeout"
+		}
 		_ = r.repo.AddEvent(&domain.DoorEvent{
 			DoorID:      door.ID,
 			UserID:      doorCtx.UserID,
-			EventType:   "error",
+			EventType:   eventType,
 			PayloadJSON: fmt.Sprintf(`{"error":%q}`, truncateJSONValue(runErr.Error(), 280)),
 		})
 		return runErr
