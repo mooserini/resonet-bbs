@@ -804,6 +804,7 @@ type webApp struct {
 	quickJump             bool
 	classicSearch         bool
 	wsTerminalURL         string
+	webTerminal           *webTerminal
 	menuRoot              string
 	savedSearches         map[string][]string
 	attentionDismissed    map[string]map[string]time.Time
@@ -1086,6 +1087,9 @@ func main() {
 	http.HandleFunc("/tournaments", app.handleTournaments)
 	http.Handle("/challenges", app.authRequired(http.HandlerFunc(app.handleChallenges)))
 	http.HandleFunc("/connect", app.handleConnect)
+	app.webTerminal = newWebTerminalFromEnv(app.siteDisplayName)
+	http.HandleFunc(terminalPagePath, app.webTerminal.handlePage)
+	http.HandleFunc(terminalSocketPath, app.webTerminal.handleSocket)
 	http.HandleFunc("/tour", app.handleGuestTour)
 	http.Handle("/assets/fonts/", brandAssetHandler())
 	http.Handle("/assets/icons/", brandAssetHandler())
@@ -5351,6 +5355,14 @@ func (w *htmlStyleWriter) sendHeaders() {
 
 func (a *webApp) withModernUI(next http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.URL.Path == terminalPagePath || r.URL.Path == terminalSocketPath {
+			// The drop-down launcher frames /terminal from our own pages, and
+			// the socket must reach the raw ResponseWriter to hijack it.
+			w.Header().Set("X-Frame-Options", "SAMEORIGIN")
+			applyCommonSecurityHeaders(w)
+			next.ServeHTTP(w, r)
+			return
+		}
 		applyCommonSecurityHeaders(w)
 		if strings.HasPrefix(r.URL.Path, "/chat/stream") {
 			next.ServeHTTP(w, r)
@@ -5365,7 +5377,7 @@ func (a *webApp) withModernUI(next http.Handler) http.Handler {
 		body := writer.body.Bytes()
 		contentType := strings.ToLower(strings.TrimSpace(writer.header.Get("Content-Type")))
 		if shouldInjectModernUI(contentType, body) {
-			view := modernUIView{siteName: a.siteDisplayName()}
+			view := modernUIView{siteName: a.siteDisplayName(), terminal: a.webTerminal != nil && a.webTerminal.enabled}
 			if user, ok := a.currentUser(r); ok && user != nil {
 				view.role = rbac.NormalizeRole(user.Role)
 			}
@@ -5411,6 +5423,7 @@ func shouldInjectModernUI(contentType string, body []byte) bool {
 type modernUIView struct {
 	siteName string
 	role     string
+	terminal bool
 }
 
 func injectModernUI(page string) string {
@@ -5448,6 +5461,9 @@ func injectModernUIWith(page string, view modernUIView) string {
 	}
 	if !strings.Contains(page, `id="wolfbbs-modern-ui"`) {
 		headInject += modernUIBootstrap
+	}
+	if view.terminal && !strings.Contains(page, `id="wolfbbs-terminal-launcher"`) {
+		headInject += terminalLauncherTag
 	}
 	if headInject == "" {
 		return page
@@ -5836,7 +5852,7 @@ setTimeout(function(){ focusTerminal(); }, 0);
 	page := `<html><body>
 <h1>` + htmlEscape(a.siteDisplayName()) + ` Connect</h1>
 <p>Terminal-first remains the primary UX.</p>
-` + motdBlock + `
+` + a.webTerminal.connectLink() + motdBlock + `
 ` + announcementBlock + `
 <section class="wolfbbs-kpi-grid">
 <article class="wolfbbs-kpi-card"><strong>SSH</strong><span>primary caller path</span></article>

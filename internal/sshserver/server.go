@@ -221,6 +221,9 @@ func (s *Server) handleSession(sess gssh.Session) {
 	if ra := sess.RemoteAddr(); ra != nil {
 		remoteAddr = ra.String()
 	}
+	if bridged := bridgedClientAddr(sess.Environ()); bridged != "" {
+		remoteAddr = bridged
+	}
 	remoteHost := normalizeRemoteHost(remoteAddr)
 	remoteOrigin := netutil.RemoteOrigin(remoteAddr)
 	s.logger.Info("session connected", "session_id", sessionID, "remote_addr", remoteAddr, "remote_host", remoteHost, "remote_origin", remoteOrigin)
