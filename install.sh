@@ -43,6 +43,8 @@ DEPS_ONLY=false
 DEBUG_BUNDLE=false
 PORT_AUDIT=false
 RESET_2FA_HANDLE=""
+BACKUP=false
+RESTORE_DIR=""
 REPO_URL="${WOLFBBS_REPO_URL:-${WOLFBBS_GH:-}}"
 BBS_NAME="${WOLFBBS_BBS_NAME:-$DEFAULT_BBS_NAME}"
 BBS_HOSTNAME="${WOLFBBS_HOSTNAME:-}"
@@ -214,11 +216,11 @@ running_from_local_checkout() {
 }
 
 is_direct_install_mode() {
-  [[ "$UNINSTALL" != "true" && "$UPGRADE" != "true" && "$RAPID_UPGRADE" != "true" && "$STATUS" != "true" && "$START" != "true" && "$STOP" != "true" && "$RESTART" != "true" && "$LOGS" != "true" && "$REPAIR" != "true" && "$DEPS_ONLY" != "true" && -z "$RESET_2FA_HANDLE" ]]
+  [[ "$UNINSTALL" != "true" && "$UPGRADE" != "true" && "$RAPID_UPGRADE" != "true" && "$STATUS" != "true" && "$START" != "true" && "$STOP" != "true" && "$RESTART" != "true" && "$LOGS" != "true" && "$REPAIR" != "true" && "$DEPS_ONLY" != "true" && -z "$RESET_2FA_HANDLE" && "$BACKUP" != "true" && -z "$RESTORE_DIR" ]]
 }
 
 should_adopt_installed_compose() {
-  if [[ "$UNINSTALL" == "true" || "$UPGRADE" == "true" || "$RAPID_UPGRADE" == "true" || "$STATUS" == "true" || "$START" == "true" || "$STOP" == "true" || "$RESTART" == "true" || "$LOGS" == "true" || "$REPAIR" == "true" || -n "$RESET_2FA_HANDLE" ]]; then
+  if [[ "$UNINSTALL" == "true" || "$UPGRADE" == "true" || "$RAPID_UPGRADE" == "true" || "$STATUS" == "true" || "$START" == "true" || "$STOP" == "true" || "$RESTART" == "true" || "$LOGS" == "true" || "$REPAIR" == "true" || -n "$RESET_2FA_HANDLE" || "$BACKUP" == "true" || -n "$RESTORE_DIR" ]]; then
     return 0
   fi
   if running_from_local_checkout; then
@@ -1095,6 +1097,8 @@ Options:
   --logs                    show recent service logs (tail)
   --repair                  self-heal install: ensure deps/env, rebuild + verify stack
   --reset-2fa <handle>      turn off 2FA for a locked-out account (runs on this machine only)
+  --backup                  save a database dump + .env copy to <prefix>/backups/<timestamp>
+  --restore <backup-dir>    restore the database from a --backup folder (typed WIPE; backs up first)
   --deps-only               install/check prerequisites and docker runtime, then exit
   --clean-uninstall         uninstall + purge + remove install directory (git checkout protected)
   --purge                   remove docker volumes/instance on uninstall
@@ -1130,6 +1134,8 @@ action_selected() {
     "$LOGS" == "true" ||
     "$REPAIR" == "true" ||
     -n "$RESET_2FA_HANDLE" ||
+    "$BACKUP" == "true" ||
+    -n "$RESTORE_DIR" ||
     "$DEPS_ONLY" == "true" ]]
 }
 
@@ -4210,6 +4216,15 @@ parse_args() {
         RESET_2FA_HANDLE="$2"
         shift 2
         ;;
+      --backup)
+        BACKUP=true
+        shift
+        ;;
+      --restore)
+        require_value "$1" "${2:-}"
+        RESTORE_DIR="$2"
+        shift 2
+        ;;
       --deps-only)
         DEPS_ONLY=true
         shift
@@ -4230,6 +4245,103 @@ parse_args() {
         ;;
     esac
   done
+}
+
+# Database connection details for maintenance commands, from the env file.
+db_maint_context() {
+  if ! ensure_action_compose_context; then
+    exit 1
+  fi
+  ENV_FILE="$(resolve_env_file || true)"
+  if [[ -z "$ENV_FILE" ]]; then
+    echo "No env file found in ${PREFIX}."
+    exit 1
+  fi
+  DB_USER="$(read_env_value "POSTGRES_USER" "$ENV_FILE" | tr -d "'\"")"
+  DB_NAME="$(read_env_value "POSTGRES_DB" "$ENV_FILE" | tr -d "'\"")"
+  DB_USER="${DB_USER:-wolfbbs}"
+  DB_NAME="${DB_NAME:-wolfbbs}"
+  COMPOSE_BASE="cd '$WORK_DIR' && $(compose_cmd) $(compose_file_flags) --env-file \"$ENV_FILE\""
+}
+
+backup_root() {
+  printf '%s/backups' "$PREFIX"
+}
+
+# Snapshot everything that can't be rebuilt from the repo: the database and
+# .env. Folders are private (700) and pruned to the newest WOLFBBS_BACKUP_KEEP.
+backup_board() {
+  local stamp=""
+  local dir=""
+  local keep="${WOLFBBS_BACKUP_KEEP:-14}"
+  db_maint_context
+  stamp="$(date +%Y%m%d-%H%M%S)"
+  dir="$(backup_root)/${stamp}"
+  if [[ "$DRY_RUN" == "true" ]]; then
+    log "DRY-RUN: would write database dump and .env copy to ${dir}"
+    return 0
+  fi
+  umask 077
+  mkdir -p "$dir"
+  chmod 700 "$(backup_root)" "$dir"
+  if ! eval "$COMPOSE_BASE exec -T postgres pg_dump -U \"$DB_USER\" -d \"$DB_NAME\" -Fc" >"${dir}/database.dump"; then
+    echo "Database dump failed; removing the incomplete backup ${dir}."
+    rm -rf "$dir"
+    exit 1
+  fi
+  if [[ ! -s "${dir}/database.dump" ]]; then
+    echo "Database dump was empty; removing ${dir}."
+    rm -rf "$dir"
+    exit 1
+  fi
+  cp -p "$ENV_FILE" "${dir}/env"
+  chmod 600 "${dir}/database.dump" "${dir}/env"
+  {
+    echo "Backup of ${PUBLIC_NAME}"
+    echo "created: $(date -u +'%Y-%m-%dT%H:%M:%SZ')"
+    echo "database: ${DB_NAME} (pg_dump custom format)"
+    echo "app commit: $(git -C "$WORK_DIR" rev-parse --short HEAD 2>/dev/null || echo unknown)"
+    echo "sha256 database.dump: $(shasum -a 256 "${dir}/database.dump" 2>/dev/null | awk '{print $1}')"
+    echo "restore: bash bootstrap.sh --restore ${dir}"
+  } >"${dir}/MANIFEST.txt"
+  echo "Backup saved: ${dir} ($(du -sh "$dir" | awk '{print $1}'))"
+  if [[ "$keep" =~ ^[0-9]+$ ]] && ((keep > 0)); then
+    ls -1d "$(backup_root)"/[0-9]*-[0-9]* 2>/dev/null | sort -r | tail -n +"$((keep + 1))" | while read -r old; do
+      rm -rf "$old"
+      echo "Pruned old backup: ${old}"
+    done
+  fi
+}
+
+# Replace the live database with a backup. The app containers are stopped
+# during the restore and a fresh backup is taken first, so this is undoable.
+restore_board() {
+  local dir="${1%/}"
+  local cmd=""
+  if [[ ! -s "${dir}/database.dump" ]]; then
+    echo "No database.dump found in ${dir}."
+    exit 1
+  fi
+  db_maint_context
+  if [[ "$DRY_RUN" == "true" ]]; then
+    log "DRY-RUN: would back up the current database, then restore ${dir}/database.dump"
+    return 0
+  fi
+  if ! confirm_destructive "Replace the live database with the backup in ${dir}. A fresh backup of the current database is taken first."; then
+    exit 0
+  fi
+  echo "Taking a safety backup of the current database first..."
+  if ! ( backup_board ); then
+    echo "Safety backup failed, so nothing was restored."
+    exit 1
+  fi
+  cmd="$(compose_cmd)"
+  run "cd '$WORK_DIR' && $cmd $(compose_file_flags) --env-file \"$ENV_FILE\" stop web bbs irc mailin"
+  if ! eval "$COMPOSE_BASE exec -T postgres pg_restore -U \"$DB_USER\" -d \"$DB_NAME\" --clean --if-exists --no-owner" <"${dir}/database.dump"; then
+    echo "pg_restore reported errors (some are harmless, e.g. objects that did not exist). Check the board, and use the safety backup above to go back."
+  fi
+  run "cd '$WORK_DIR' && $cmd $(compose_file_flags) --env-file \"$ENV_FILE\" start web bbs irc mailin"
+  echo "Restore finished from ${dir}. The live .env was left as is; the backup's copy is ${dir}/env if you need it."
 }
 
 # Escape hatch for a locked-out 2FA account. Talks to Postgres through the
@@ -4344,6 +4456,8 @@ validate_action_flags() {
     "$REPAIR"
     "$DEPS_ONLY"
     "$( [[ -n "$RESET_2FA_HANDLE" ]] && echo true || echo false )"
+    "$BACKUP"
+    "$( [[ -n "$RESTORE_DIR" ]] && echo true || echo false )"
   )
   local flag=""
   for flag in "${all_actions[@]}"; do
@@ -4458,6 +4572,14 @@ main() {
 
   if [[ -n "$RESET_2FA_HANDLE" ]]; then
     reset_two_factor
+    exit 0
+  fi
+  if [[ "$BACKUP" == "true" ]]; then
+    backup_board
+    exit 0
+  fi
+  if [[ -n "$RESTORE_DIR" ]]; then
+    restore_board "$RESTORE_DIR"
     exit 0
   fi
 
