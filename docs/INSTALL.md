@@ -287,6 +287,7 @@ When run without flags in an interactive terminal, `install.sh` opens an action 
 - `--restart`: restart existing WolfBBS services
 - `--logs`: show recent service logs
 - `--repair`: self-heal install (ensure deps/env, rebuild, verify)
+- `--reset-2fa <handle>`: turn off 2FA for a locked-out account (local machine only)
 - `--deps-only`: install/check prerequisites and Docker runtime only
 - `--upgrade`: pull/rebuild/restart stack in existing install
 - `--rapid-upgrade`: rebuild/restart from local source (no image pull) for fast iteration

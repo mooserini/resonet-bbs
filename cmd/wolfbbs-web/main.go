@@ -9147,20 +9147,17 @@ func (a *webApp) handleSettings(w http.ResponseWriter, r *http.Request) {
 			}
 			a.persistDigestPreferences(user.Handle, preset.Pref)
 			notice = "Applied " + preset.Label + " attention preset."
-		case "enable_2fa":
-			secret, err := auth.GenerateTOTPSecret()
+		case "enable_2fa", "confirm_2fa", "cancel_2fa_setup":
+			msg, err := a.handleTOTPAction(r, user.Handle, action)
 			if err != nil {
-				redirectWithError(w, r, "/settings", "2FA setup failed.")
+				redirectWithError(w, r, "/settings#two-factor", err.Error())
 				return
 			}
-			codes, err := auth.GenerateRecoveryCodes(8)
-			if err != nil {
-				redirectWithError(w, r, "/settings", "2FA setup failed.")
+			if action != "cancel_2fa_setup" {
+				redirectWithNotice(w, r, "/settings#two-factor", msg)
 				return
 			}
-			_ = a.authSvc.SetTOTPSecret(user.Handle, secret)
-			_ = a.authSvc.SetRecoveryCodes(user.Handle, codes)
-			notice = "2FA enabled. Save your recovery codes."
+			notice = msg
 		case "disable_2fa":
 			_ = a.authSvc.SetTOTPSecret(user.Handle, "")
 			_ = a.authSvc.SetRecoveryCodes(user.Handle, nil)
@@ -9205,6 +9202,7 @@ func (a *webApp) handleSettings(w http.ResponseWriter, r *http.Request) {
 		digestOptions.WriteString(`<option value="` + strconv.Itoa(value) + `"` + selected + `>` + strconv.Itoa(value) + ` items</option>`)
 	}
 	var secondFactorBlock strings.Builder
+	secondFactorBlock.WriteString(`<h2 id="two-factor">Two-Factor Authentication</h2>`)
 	var presetCards strings.Builder
 	for _, preset := range attentionPresetCatalog() {
 		statusBits := []string{summarizeDigestPreferences(preset.Pref)}
@@ -9221,8 +9219,7 @@ func (a *webApp) handleSettings(w http.ResponseWriter, r *http.Request) {
 		adminSettingsBlock = `<h2>Sysop Runtime Settings</h2><p><a href="/admin/setup">Setup Wizard</a> | <a href="/admin/config">Runtime Configuration</a> | <a href="/admin/system">WFC Dashboard</a></p>`
 	}
 	if user.TOTPSecret == "" {
-		secondFactorBlock.WriteString(`<p>2FA is currently disabled.</p>`)
-		secondFactorBlock.WriteString(`<form method="POST" action="/settings"><input type="hidden" name="action" value="enable_2fa">` + csrf + `<button type="submit">Enable TOTP</button></form>`)
+		secondFactorBlock.WriteString(a.totpSetupBlock(user.Handle, csrf))
 	} else {
 		secondFactorBlock.WriteString(`<p>2FA is enabled.</p>`)
 		secondFactorBlock.WriteString(`<form method="POST" action="/settings"><input type="hidden" name="action" value="disable_2fa">` + csrf + `<button type="submit">Disable TOTP</button></form>`)
@@ -11154,6 +11151,14 @@ func (a *webApp) handleAdminUsers(w http.ResponseWriter, r *http.Request) {
 				a.addAppError("admin.users", fmt.Errorf("unverify %s: %w", target, err))
 			}
 			a.recordAdminAction(user.Handle, target, "unverify_user", "")
+		case "reset_2fa":
+			// Escape hatch for callers locked out of their authenticator.
+			if err := a.authSvc.SetTOTPSecret(target, ""); err != nil {
+				a.addAppError("admin.users", fmt.Errorf("reset 2fa %s: %w", target, err))
+			}
+			_ = a.authSvc.SetRecoveryCodes(target, nil)
+			a.storeTOTPPending(target, nil)
+			a.recordAdminAction(user.Handle, target, "reset_2fa", "2FA turned off by sysop")
 		}
 		http.Redirect(w, r, "/admin/users", http.StatusFound)
 		return
@@ -11219,6 +11224,10 @@ func (a *webApp) handleAdminUsers(w http.ResponseWriter, r *http.Request) {
 			<input type="hidden" name="handle" value="%s">
 			%s
 			<input type="hidden" name="action" value="unverify"><button type="submit">Unverify</button></form>`, u.Handle, csrf))
+		if strings.TrimSpace(u.TOTPSecret) != "" {
+			rows.WriteString(`<form method="POST" action="/admin/users"><input type="hidden" name="handle" value="` + htmlEscape(u.Handle) + `">` + csrf +
+				`<input type="hidden" name="action" value="reset_2fa"><button type="submit" title="Turn off 2FA so this caller can sign in with their password">Reset 2FA</button></form>`)
+		}
 		rows.WriteString(fmt.Sprintf(`<form method="POST" action="/admin/users">
 			<input type="hidden" name="handle" value="%s">
 			%s

@@ -11,6 +11,7 @@ require (
 	github.com/lib/pq v1.10.9
 	golang.org/x/crypto v0.49.0
 	modernc.org/sqlite v1.32.0
+	rsc.io/qr v0.2.0
 )
 
 require (
