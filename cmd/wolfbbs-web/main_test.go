@@ -7485,10 +7485,13 @@ func TestSettingsEnableDisableTOTP(t *testing.T) {
 		t.Fatal("session creation failed")
 	}
 
-	post := func(action string) {
+	post := func(action string, extra ...string) {
 		form := url.Values{
 			"csrf_token": {app.sessions[sid].csrf},
 			"action":     {action},
+		}
+		for i := 0; i+1 < len(extra); i += 2 {
+			form.Set(extra[i], extra[i+1])
 		}
 		req := httptest.NewRequest(http.MethodPost, "/settings", strings.NewReader(form.Encode()))
 		req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
@@ -7504,6 +7507,18 @@ func TestSettingsEnableDisableTOTP(t *testing.T) {
 	user, err := authSvc.GetUser("caller")
 	if err != nil {
 		t.Fatalf("get user after enable: %v", err)
+	}
+	if strings.TrimSpace(user.TOTPSecret) != "" {
+		t.Fatal("enable must not turn 2FA on before a code is confirmed")
+	}
+	pending, ok := app.loadTOTPPending("caller")
+	if !ok {
+		t.Fatal("expected a pending 2FA setup")
+	}
+	post("confirm_2fa", "code", testTOTPCode(pending.Secret, time.Now()))
+	user, err = authSvc.GetUser("caller")
+	if err != nil {
+		t.Fatalf("get user after confirm: %v", err)
 	}
 	if strings.TrimSpace(user.TOTPSecret) == "" {
 		t.Fatal("expected TOTP secret to be persisted")

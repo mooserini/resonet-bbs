@@ -42,6 +42,7 @@ REPAIR=false
 DEPS_ONLY=false
 DEBUG_BUNDLE=false
 PORT_AUDIT=false
+RESET_2FA_HANDLE=""
 REPO_URL="${WOLFBBS_REPO_URL:-${WOLFBBS_GH:-}}"
 BBS_NAME="${WOLFBBS_BBS_NAME:-$DEFAULT_BBS_NAME}"
 BBS_HOSTNAME="${WOLFBBS_HOSTNAME:-}"
@@ -213,11 +214,11 @@ running_from_local_checkout() {
 }
 
 is_direct_install_mode() {
-  [[ "$UNINSTALL" != "true" && "$UPGRADE" != "true" && "$RAPID_UPGRADE" != "true" && "$STATUS" != "true" && "$START" != "true" && "$STOP" != "true" && "$RESTART" != "true" && "$LOGS" != "true" && "$REPAIR" != "true" && "$DEPS_ONLY" != "true" ]]
+  [[ "$UNINSTALL" != "true" && "$UPGRADE" != "true" && "$RAPID_UPGRADE" != "true" && "$STATUS" != "true" && "$START" != "true" && "$STOP" != "true" && "$RESTART" != "true" && "$LOGS" != "true" && "$REPAIR" != "true" && "$DEPS_ONLY" != "true" && -z "$RESET_2FA_HANDLE" ]]
 }
 
 should_adopt_installed_compose() {
-  if [[ "$UNINSTALL" == "true" || "$UPGRADE" == "true" || "$RAPID_UPGRADE" == "true" || "$STATUS" == "true" || "$START" == "true" || "$STOP" == "true" || "$RESTART" == "true" || "$LOGS" == "true" || "$REPAIR" == "true" ]]; then
+  if [[ "$UNINSTALL" == "true" || "$UPGRADE" == "true" || "$RAPID_UPGRADE" == "true" || "$STATUS" == "true" || "$START" == "true" || "$STOP" == "true" || "$RESTART" == "true" || "$LOGS" == "true" || "$REPAIR" == "true" || -n "$RESET_2FA_HANDLE" ]]; then
     return 0
   fi
   if running_from_local_checkout; then
@@ -1093,6 +1094,7 @@ Options:
   --restart                 restart existing WolfBBS services
   --logs                    show recent service logs (tail)
   --repair                  self-heal install: ensure deps/env, rebuild + verify stack
+  --reset-2fa <handle>      turn off 2FA for a locked-out account (runs on this machine only)
   --deps-only               install/check prerequisites and docker runtime, then exit
   --clean-uninstall         uninstall + purge + remove install directory (git checkout protected)
   --purge                   remove docker volumes/instance on uninstall
@@ -1127,6 +1129,7 @@ action_selected() {
     "$RESTART" == "true" ||
     "$LOGS" == "true" ||
     "$REPAIR" == "true" ||
+    -n "$RESET_2FA_HANDLE" ||
     "$DEPS_ONLY" == "true" ]]
 }
 
@@ -4202,6 +4205,11 @@ parse_args() {
         REPAIR=true
         shift
         ;;
+      --reset-2fa)
+        require_value "$1" "${2:-}"
+        RESET_2FA_HANDLE="$2"
+        shift 2
+        ;;
       --deps-only)
         DEPS_ONLY=true
         shift
@@ -4222,6 +4230,52 @@ parse_args() {
         ;;
     esac
   done
+}
+
+# Escape hatch for a locked-out 2FA account. Talks to Postgres through the
+# local Docker socket, so it only works on the machine hosting the board.
+reset_two_factor() {
+  local handle="$RESET_2FA_HANDLE"
+  local cmd=""
+  local db_user=""
+  local db_name=""
+  local output=""
+  if [[ ! "$handle" =~ ^[A-Za-z0-9._-]{1,64}$ ]]; then
+    echo "Invalid handle: ${handle}"
+    exit 1
+  fi
+  if ! ensure_action_compose_context; then
+    exit 1
+  fi
+  ENV_FILE="$(resolve_env_file || true)"
+  if [[ -z "$ENV_FILE" ]]; then
+    echo "No env file found in ${PREFIX}."
+    exit 1
+  fi
+  db_user="$(read_env_value "POSTGRES_USER" "$ENV_FILE" | tr -d "'\"")"
+  db_name="$(read_env_value "POSTGRES_DB" "$ENV_FILE" | tr -d "'\"")"
+  db_user="${db_user:-wolfbbs}"
+  db_name="${db_name:-wolfbbs}"
+  if [[ "$DRY_RUN" == "true" ]]; then
+    log "DRY-RUN: would clear 2FA for ${handle}"
+    exit 0
+  fi
+  if ! confirm "Turn off 2FA for ${handle}? They will sign in with just their password."; then
+    echo "Aborted. Nothing changed."
+    exit 0
+  fi
+  cmd="$(compose_cmd)"
+  output="$(printf "UPDATE users SET totp_secret = '', recovery_codes = '{}' WHERE lower(handle) = lower(:'h');\n" |
+    eval "cd '$WORK_DIR' && $cmd $(compose_file_flags) --env-file \"$ENV_FILE\" exec -T postgres psql -U \"$db_user\" -d \"$db_name\" -v ON_ERROR_STOP=1 -v h=\"$handle\"" 2>&1)" || {
+    echo "Could not reach the database: ${output}"
+    exit 1
+  }
+  if [[ "$output" == *"UPDATE 1"* ]]; then
+    echo "2FA is off for ${handle}. They can sign in with their password and set it up again from Settings."
+  else
+    echo "No account named ${handle} was found. Nothing changed."
+    exit 1
+  fi
 }
 
 # A fork that still calls itself WolfBBS confuses visitors about which board
@@ -4289,6 +4343,7 @@ validate_action_flags() {
     "$LOGS"
     "$REPAIR"
     "$DEPS_ONLY"
+    "$( [[ -n "$RESET_2FA_HANDLE" ]] && echo true || echo false )"
   )
   local flag=""
   for flag in "${all_actions[@]}"; do
@@ -4398,6 +4453,11 @@ main() {
     fi
     ensure_runtime_env_defaults "$ENV_FILE"
     status_view
+    exit 0
+  fi
+
+  if [[ -n "$RESET_2FA_HANDLE" ]]; then
+    reset_two_factor
     exit 0
   fi
 

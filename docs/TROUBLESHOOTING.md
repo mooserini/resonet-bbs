@@ -56,6 +56,20 @@ Useful generated files:
 - fix blockers first
 - if warnings are intentional, document them before launch
 
+### Locked out by 2FA
+
+2FA uses an authenticator app (codes are never emailed). If you can't produce a code:
+
+- enter one of your recovery codes in the 2FA box instead; each works once, then turn 2FA off or set it up again in Settings
+- a sysop can press **Reset 2FA** next to the account in `/admin/users`
+- if the sysop is the one locked out, run this on the machine hosting the board:
+
+```bash
+bash bootstrap.sh --reset-2fa <handle>
+```
+
+Setting up 2FA now shows a QR code and key and only turns on after you enter a working code, so this should be rare.
+
 ### Admin saves fail with "read-only mode"
 
 Read-only maintenance mode blocks every admin save. Open `/admin/config` as a sysop and press **Turn off read-only mode** in the banner at the top.
