@@ -720,6 +720,12 @@ write_launch_brief() {
   local host="${1:-${BBS_HOSTNAME:-localhost}}"
   local bbs_name="${2:-${BBS_NAME:-$DEFAULT_BBS_NAME}}"
   local admin_handle="${3:-${BOOTSTRAP_ADMIN_HANDLE:-sysop}}"
+  # Resolve before building URLs; loopback-bound ports are only reachable as localhost.
+  if [[ "${WOLFBBS_BIND_ADDR:-127.0.0.1}" =~ ^(127\.0\.0\.1|localhost|::1)$ ]]; then
+    host="localhost"
+  else
+    host="$(resolve_display_host "$host")"
+  fi
   local docs_root=""
   local admin_login_url="http://${host}:${WEB_PORT}/admin/login"
   local admin_setup_url="http://${host}:${WEB_PORT}/admin/setup"
@@ -730,7 +736,6 @@ write_launch_brief() {
   local scores_url="http://${host}:${WEB_PORT}/scores"
   local out_file=""
 
-  host="$(resolve_display_host "$host")"
   out_file="$(launch_brief_path)"
   docs_root="$(docs_root_path || true)"
 
@@ -3232,23 +3237,49 @@ status_view() {
   local snapshot=""
 
   docs_root="$(docs_root_path || true)"
-  status_host="$(resolve_display_host "$status_host")"
+  # Ports are published on WOLFBBS_BIND_ADDR (default 127.0.0.1). When that is
+  # loopback, LAN addresses don't work, so show localhost.
+  local bind_addr="${WOLFBBS_BIND_ADDR:-127.0.0.1}"
+  if [[ "$bind_addr" == "127.0.0.1" || "$bind_addr" == "localhost" || "$bind_addr" == "::1" ]]; then
+    status_host="localhost"
+  else
+    status_host="$(resolve_display_host "$status_host")"
+  fi
+  # The live site name/hostname are what /admin/config saved in the database.
+  local db_site_name=""
+  local db_site_host=""
+  cmd="$(compose_cmd)"
+  if [[ -n "$cmd" ]]; then
+    db_site_name="$(eval "$cmd $(compose_file_flags) --env-file '$ENV_FILE' exec -T postgres psql -U \"${POSTGRES_USER:-wolfbbs}\" -d \"${POSTGRES_DB:-wolfbbs}\" -tAc \"select value from system_settings where key='site.name'\"" 2>/dev/null | tr -d '\r' | head -1 || true)"
+    db_site_host="$(eval "$cmd $(compose_file_flags) --env-file '$ENV_FILE' exec -T postgres psql -U \"${POSTGRES_USER:-wolfbbs}\" -d \"${POSTGRES_DB:-wolfbbs}\" -tAc \"select value from system_settings where key='site.hostname'\"" 2>/dev/null | tr -d '\r' | head -1 || true)"
+  fi
+  if [[ -n "$db_site_name" ]]; then
+    status_name="$db_site_name"
+  fi
   write_launch_brief "$status_host" "$status_name" "${WOLFBBS_BOOTSTRAP_ADMIN_HANDLE:-sysop}"
 
   echo "BBS Name: ${status_name}"
   echo "Setup Profile: ${WOLFBBS_SETUP_PROFILE:-basic}"
-  echo "SSH: ssh ${status_host} -p ${runtime_ssh_port}"
-  echo "Web: http://${status_host}:${runtime_web_port}/admin"
-  echo "Chat: http://${status_host}:${runtime_web_port}/chat"
-  echo "IRC: ${status_host}:${runtime_irc_port} (TLS: ${status_host}:${runtime_irc_tls_port})"
-  echo "Mail Ingest: http://${status_host}:${runtime_mailin_port}/ingest"
-  echo "Install layout:"
-  echo "  Prefix: ${PREFIX}"
-  echo "  Managed app dir: $(managed_checkout_dir)"
-  echo "  Env file: ${ENV_FILE}"
+  if [[ -n "$db_site_host" && "$db_site_host" != "localhost" ]]; then
+    echo "Public web: https://${db_site_host}/ (through your reverse proxy or tunnel)"
+  fi
+  echo "On this machine (ports bound to ${bind_addr}):"
+  echo "  SSH: ssh ${status_host} -p ${runtime_ssh_port}"
+  echo "  Web: http://${status_host}:${runtime_web_port}/admin"
+  echo "  Chat: http://${status_host}:${runtime_web_port}/chat"
+  echo "  IRC: ${status_host}:${runtime_irc_port} (TLS: ${status_host}:${runtime_irc_tls_port})"
+  echo "  Mail Ingest: http://${status_host}:${runtime_mailin_port}/ingest"
+  echo "Where things live:"
+  echo "  App source (images are built from here): ${WORK_DIR}"
   echo "  Compose file: ${compose_file}"
-  echo "  First-steps brief: $(launch_brief_path)"
-  echo "  Service snapshot: $(status_snapshot_path)"
+  echo "  Settings and secrets: ${ENV_FILE}"
+  echo "  Saved admin settings (/admin/config, /admin/gateways): in the database"
+  echo "  Database: Docker volume wolfbbs_pgdata (users, boards, messages, admin settings)"
+  echo "  Backups: $(backup_root) (bash bootstrap.sh --backup)"
+  echo "  Install folder (settings, logs, backups only): ${PREFIX}"
+  if [[ -d "$(managed_checkout_dir)" ]]; then
+    echo "  Downloaded app copy: $(managed_checkout_dir)"
+  fi
   if [[ -n "${WOLFBBS_BOOTSTRAP_ADMIN_HANDLE:-}" ]]; then
     echo "Bootstrap sysop handle: ${WOLFBBS_BOOTSTRAP_ADMIN_HANDLE} (password stored in ${ENV_FILE})"
   fi
@@ -3363,17 +3394,18 @@ status_view() {
     echo "  INFO service snapshot will be written now: $(status_snapshot_path)"
     safety_lines+=("INFO service snapshot will be written now: $(status_snapshot_path)")
   fi
-  local menu_backup_count=0
-  if [[ -d "${WORK_DIR}/menus" ]]; then
-    menu_backup_count="$(find "${WORK_DIR}/menus" -type f -name '*.bak' 2>/dev/null | wc -l | awk '{print $1}')"
-  fi
-  if [[ "${menu_backup_count:-0}" -gt 0 ]]; then
-    echo "  PASS menu backup files: ${menu_backup_count}"
-    safety_lines+=("PASS menu backup files: ${menu_backup_count}")
+  # A recent database backup is what makes risky changes safe. (The old check
+  # counted menu *.bak files on the host, but the menu editor writes those
+  # inside the container, so it could never pass on a Docker install.)
+  local latest_backup=""
+  latest_backup="$(find "$(backup_root)" -mindepth 1 -maxdepth 1 -type d -mtime -7 2>/dev/null | sort | tail -1 || true)"
+  if [[ -n "$latest_backup" ]]; then
+    echo "  PASS recent backup: ${latest_backup}"
+    safety_lines+=("PASS recent backup: ${latest_backup}")
     safety_pass=$((safety_pass + 1))
   else
-    echo "  WARN menu backup files: 0 (save /admin/config at least once before risky changes)"
-    safety_lines+=("WARN menu backup files: 0 (save /admin/config at least once before risky changes)")
+    echo "  WARN no backup in the last 7 days (run: bash bootstrap.sh --backup)"
+    safety_lines+=("WARN no backup in the last 7 days (run: bash bootstrap.sh --backup)")
     safety_warn=$((safety_warn + 1))
   fi
   echo "Upgrade safety verdict: ${safety_pass} pass / ${safety_warn} warn"
