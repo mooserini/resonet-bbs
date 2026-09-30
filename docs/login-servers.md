@@ -8,6 +8,25 @@ Defaults:
 - WebSocket login: disabled by default
 - WebSocket TLS login: disabled by default
 
+## Browser terminal (web companion, on by default)
+
+`/terminal` on the web companion is the real SSH board in a browser tab:
+the web server opens a WebSocket at `/terminal/ws` and relays it into the SSH
+listener over the private Docker network. ANSI menus, the login screen, and
+doors behave exactly as they do in a desktop SSH client. On any site page, the
+backquote key drops the same terminal down over the page (Ctrl+backquote hides
+it again from inside the terminal).
+
+This is not the WebSocket login transport below, which is a line-by-line
+command shell. The bridge adds no login of its own: callers still sign in at
+the BBS login screen, and the socket only opens from a page served by the same
+host.
+
+Settings (web service unless noted):
+- `WOLFBBS_WEB_TERMINAL` (default `true`): set `false` to remove `/terminal` and the drop-down.
+- `WOLFBBS_TERMINAL_SSH_ADDR` (default `127.0.0.1:2222`, `bbs:2222` in `docker-compose.yml`): SSH listener to relay into.
+- `WOLFBBS_TERMINAL_BRIDGE_SECRET` (set the same value on the web and bbs services): lets the BBS show the browser caller's real IP (from `Cf-Connecting-IP` / `X-Forwarded-For` when the web server sits behind a local proxy) instead of the web container's address. Without it, every browser caller appears to come from the web container.
+
 ## Telnet (optional)
 
 Enable:
