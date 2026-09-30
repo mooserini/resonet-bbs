@@ -5420,6 +5420,9 @@ func injectModernUI(page string) string {
 	if !strings.Contains(lower, `name="viewport"`) {
 		headInject += `<meta name="viewport" content="width=device-width, initial-scale=1">`
 	}
+	if !strings.Contains(lower, `name="application-name"`) {
+		headInject += `<meta name="application-name" content="` + htmlEscape(defaultSiteName()) + `">`
+	}
 	if !strings.Contains(lower, `rel="icon"`) {
 		headInject += brandIconLinks
 	}

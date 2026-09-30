@@ -31,6 +31,14 @@ const brandStyleTag = `<style id="wolfbbs-brand">
   --rm-surface-2:rgba(247,238,226,.08);
   --rm-line:rgba(183,165,147,.28);
   --rm-line-strong:rgba(183,165,147,.55);
+  /* The thin strip from www.getadongle.com (.rainbow-border-*): a little life
+     along the top edges; never behind text. */
+  --rm-strip:linear-gradient(90deg,#3b82f6 0%,#a855f7 35%,#ec4899 70%,#f59e0b 100%);
+  --rm-strip-subtle:linear-gradient(90deg,rgba(59,130,246,.6),rgba(168,85,247,.6),rgba(236,72,153,.6),rgba(245,158,11,.6));
+  /* CRT phosphor (P1 green default); switched per viewer via data-phosphor. */
+  --crt-fg:#00ff66;
+  --crt-dim:#087a34;
+  --crt-bg:#031206;
   --rm-chrome:linear-gradient(180deg,var(--rm-chrome-top) 0%,var(--rm-chrome-mid) 55%,var(--rm-chrome-bottom) 100%);
   --rm-font-display:"Web437 ATT PC6300","Ac437 ATT PC6300",ui-monospace,Menlo,monospace;
   --rm-font-body:"SF Pro Text",-apple-system,BlinkMacSystemFont,"Helvetica Neue",Helvetica,Arial,sans-serif;
@@ -129,7 +137,7 @@ tbody tr:hover td{background-color:var(--rm-surface)}
 
 /* Page header: dark band with the chrome strip along its top edge. */
 .wolfbbs-page-hero{
-  background:var(--rm-chrome) top/100% 4px no-repeat,var(--rm-ink);
+  background:var(--rm-strip) top/100% 3px no-repeat,var(--rm-ink);
   border-color:var(--rm-line-strong);
 }
 
@@ -208,7 +216,70 @@ input[type=checkbox],input[type=radio],input[type=range]{accent-color:var(--rm-g
   background-color:var(--rm-ink);
   border:1px solid var(--rm-line-strong);
 }
-#wolfbbsScrollProgress{background-color:var(--rm-copper)}
+#wolfbbsScrollProgress{background-color:transparent;background-image:var(--rm-strip)}
 .wolfbbs-skip-link{background-color:var(--rm-chrome-top);color:var(--rm-ink);-webkit-text-fill-color:var(--rm-ink)}
 ::selection{background-color:var(--rm-copper);color:var(--rm-chrome-top)}
+
+/* Thin strips along the top of the page and the main panels. */
+body{border-top:3px solid transparent;border-image:var(--rm-strip) 1;border-image-width:3px 0 0 0}
+p.wolfbbs-nav-row,body > p:has(> a),.wolfbbs-section-nav{
+  background-image:var(--rm-strip-subtle);
+  background-size:100% 1px;
+  background-position:top;
+  background-repeat:no-repeat;
+}
+
+/* Phosphor palettes (same values as the portfolio's Logo.tsx). */
+:root[data-phosphor="amber"]{--crt-fg:#ffb000;--crt-dim:#8a5700;--crt-bg:#140c00}
+:root[data-phosphor="cyan"]{--crt-fg:#00e5ff;--crt-dim:#00708b;--crt-bg:#021017}
+:root[data-phosphor="copper"]{--crt-fg:#e29b68;--crt-dim:#8a472c;--crt-bg:#140d07}
+:root[data-phosphor="violet"]{--crt-fg:#d946ef;--crt-dim:#8c2aa1;--crt-bg:#120417}
+
+/* CRT banner */
+.wolfbbs-crt{
+  margin:14px 0;
+  border:1px solid var(--rm-line-strong);
+  background:var(--rm-strip) top/100% 3px no-repeat,var(--rm-ink);
+  font-family:var(--rm-font-display);
+}
+.wolfbbs-crt-bar,.wolfbbs-crt-foot{
+  display:flex;justify-content:space-between;align-items:center;gap:10px;
+  padding:9px 14px;
+  font-size:.78rem;
+  color:var(--rm-sub);
+}
+.wolfbbs-crt-bar{border-bottom:1px solid var(--rm-line)}
+.wolfbbs-crt-foot{border-top:1px solid var(--rm-line);font-size:.7rem}
+.wolfbbs-crt-label{color:var(--rm-cream)}
+.wolfbbs-crt-tools{display:flex;gap:8px}
+.wolfbbs-crt-btn{padding:4px 10px;font-size:.7rem;border-radius:0}
+.wolfbbs-crt-screen{
+  position:relative;
+  display:grid;place-items:center;
+  min-height:190px;
+  padding:26px 16px;
+  overflow:hidden;
+  background-color:var(--crt-bg);
+}
+.wolfbbs-crt-screen::after{
+  content:"";position:absolute;inset:0;pointer-events:none;
+  background-image:repeating-linear-gradient(0deg,rgba(0,0,0,.28) 0,rgba(0,0,0,.28) 1px,transparent 1px,transparent 3px);
+}
+.wolfbbs-crt-title{
+  color:var(--crt-fg);
+  -webkit-text-fill-color:var(--crt-fg);
+  font-family:var(--rm-font-display);
+  font-size:clamp(2.2rem,7vw,5.6rem);
+  line-height:1.02;
+  letter-spacing:.02em;
+  text-align:center;
+  text-shadow:3px 3px 0 var(--crt-dim),6px 6px 0 rgba(0,0,0,.55),0 0 14px var(--crt-fg);
+}
+.wolfbbs-crt-emblem{display:none;width:min(170px,40vw);height:auto;filter:drop-shadow(0 0 12px var(--crt-fg))}
+.wolfbbs-crt[data-view="emblem"] .wolfbbs-crt-title{display:none}
+.wolfbbs-crt[data-view="emblem"] .wolfbbs-crt-emblem{display:block}
+@media (prefers-reduced-motion:no-preference){
+  .wolfbbs-crt-title{animation:wolfbbs-crt-flicker 6s infinite steps(1)}
+}
+@keyframes wolfbbs-crt-flicker{0%,97%,100%{opacity:1}98%{opacity:.86}}
 </style>`

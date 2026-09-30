@@ -193,6 +193,7 @@ const modernUIScriptTag = `
 
   const uiPrefs = Object.assign({
     theme: "night",
+    phosphor: "green",
     density: "comfortable",
     fontScale: 1,
     layout: "standard",
@@ -202,6 +203,27 @@ const modernUIScriptTag = `
 
   function persistUIPrefs() {
     writeJSON(uiPrefsKey, uiPrefs);
+  }
+
+  // CRT phosphor palettes, shared with www.getadongle.com (src/components/Logo.tsx).
+  // They only color CRT surfaces (banner, terminal glow); the brand chrome stays put.
+  const phosphorModes = [
+    { id: "green", label: "P1 Green" },
+    { id: "amber", label: "P3 Amber" },
+    { id: "cyan", label: "CGA Cyan" },
+    { id: "copper", label: "Hermes Bronze" },
+    { id: "violet", label: "Resonant Violet" }
+  ];
+  function phosphorLabel(id) {
+    const hit = phosphorModes.find((m) => m.id === id);
+    return hit ? hit.label : phosphorModes[0].label;
+  }
+  function cyclePhosphor() {
+    const idx = phosphorModes.findIndex((m) => m.id === uiPrefs.phosphor);
+    uiPrefs.phosphor = phosphorModes[(idx + 1) % phosphorModes.length].id;
+    persistUIPrefs();
+    applyUIPrefs();
+    document.dispatchEvent(new CustomEvent("wolfbbs:phosphor"));
   }
 
   function applyUIPrefs() {
@@ -218,6 +240,9 @@ const modernUIScriptTag = `
     uiPrefs.accent = accent;
     uiPrefs.motion = motion;
     document.body.setAttribute("data-theme-mode", theme);
+    const phosphor = phosphorModes.some((m) => m.id === uiPrefs.phosphor) ? uiPrefs.phosphor : "green";
+    uiPrefs.phosphor = phosphor;
+    document.documentElement.setAttribute("data-phosphor", phosphor);
     document.body.setAttribute("data-density", density);
     document.body.setAttribute("data-layout-mode", layout);
     document.body.setAttribute("data-accent-mode", accent);
@@ -676,6 +701,69 @@ const modernUIScriptTag = `
     window.addEventListener("resize", resize);
     resize();
     paint(0);
+  }
+
+  // CRT banner, the same idea as the www.getadongle.com header: the board name
+  // on a phosphor screen, with palette and emblem toggles.
+  function mountCRTBanner() {
+    if (!["/start", "/connect"].includes(location.pathname) || document.querySelector(".wolfbbs-crt")) return;
+    const hero = document.querySelector(".wolfbbs-page-hero");
+    const main = document.querySelector("main.wolfbbs-main");
+    if (!hero && !main) return;
+    const meta = document.querySelector('meta[name="application-name"]');
+    const name = String((meta && meta.content) || "").trim() || "BBS";
+    const crt = document.createElement("section");
+    crt.className = "wolfbbs-crt";
+    crt.setAttribute("aria-label", name + " banner");
+    const bar = document.createElement("div");
+    bar.className = "wolfbbs-crt-bar";
+    const label = document.createElement("span");
+    label.className = "wolfbbs-crt-label";
+    label.textContent = ">_ CRT OUTPUT // " + name.toUpperCase();
+    const tools = document.createElement("span");
+    tools.className = "wolfbbs-crt-tools";
+    const paletteBtn = document.createElement("button");
+    paletteBtn.type = "button";
+    paletteBtn.className = "wolfbbs-crt-btn";
+    paletteBtn.textContent = "PALETTE";
+    const viewBtn = document.createElement("button");
+    viewBtn.type = "button";
+    viewBtn.className = "wolfbbs-crt-btn";
+    tools.append(paletteBtn, viewBtn);
+    bar.append(label, tools);
+    const screen = document.createElement("div");
+    screen.className = "wolfbbs-crt-screen";
+    const title = document.createElement("div");
+    title.className = "wolfbbs-crt-title";
+    title.textContent = name.toUpperCase();
+    const emblem = document.createElement("img");
+    emblem.className = "wolfbbs-crt-emblem";
+    emblem.src = "/assets/icons/icon-512.png";
+    emblem.alt = "";
+    screen.append(title, emblem);
+    const foot = document.createElement("div");
+    foot.className = "wolfbbs-crt-foot";
+    crt.append(bar, screen, foot);
+    const viewKey = "wolfbbs:ui:crt-view:v1";
+    let view = readJSON(viewKey, "banner") === "emblem" ? "emblem" : "banner";
+    function sync() {
+      crt.dataset.view = view;
+      viewBtn.textContent = view === "banner" ? "EMBLEM" : "BANNER";
+      foot.textContent = "OUTPUT: " + phosphorLabel(uiPrefs.phosphor).toUpperCase() + " PHOSPHOR • 80s CGA RASTER";
+    }
+    paletteBtn.addEventListener("click", () => cyclePhosphor());
+    viewBtn.addEventListener("click", () => {
+      view = view === "banner" ? "emblem" : "banner";
+      writeJSON(viewKey, view);
+      sync();
+    });
+    document.addEventListener("wolfbbs:phosphor", sync);
+    sync();
+    if (hero && hero.parentNode) {
+      hero.parentNode.insertBefore(crt, hero.nextSibling);
+    } else {
+      main.insertBefore(crt, main.firstChild);
+    }
   }
 
   function mountSpatialPreview() {
@@ -1368,18 +1456,13 @@ const modernUIScriptTag = `
 
     const theme = document.createElement("button");
     theme.type = "button";
-    const themeModes = ["default", "contrast", "night"];
     function syncThemeLabel() {
-      theme.textContent = "Theme: " + (uiPrefs.theme === "default" ? "Soft" : uiPrefs.theme === "contrast" ? "Contrast" : "Night");
+      theme.textContent = "Phosphor: " + phosphorLabel(uiPrefs.phosphor);
     }
     theme.addEventListener("click", () => {
-      const current = themeModes.indexOf(uiPrefs.theme);
-      const prev = uiPrefs.theme;
-      uiPrefs.theme = themeModes[(current + 1 + themeModes.length) % themeModes.length];
-      persistUIPrefs();
-      applyUIPrefs();
-      syncThemeLabel();
-      showToast("Theme updated", "ok");
+      const prev = uiPrefs.phosphor;
+      cyclePhosphor();
+      showToast("Phosphor: " + phosphorLabel(uiPrefs.phosphor), "ok");
       pushUndoAction({ type: "ui-theme", value: prev });
     });
     syncThemeLabel();
@@ -1922,7 +2005,7 @@ const modernUIScriptTag = `
       }
       switch (action.type) {
       case "ui-theme":
-        uiPrefs.theme = action.value;
+        uiPrefs.phosphor = action.value;
         persistUIPrefs();
         applyUIPrefs();
         syncThemeLabel();
@@ -4600,7 +4683,22 @@ const modernUIScriptTag = `
   try {
     const recentKey = "wolfbbsRecentPages";
     const recent = JSON.parse(localStorage.getItem(recentKey) || "[]").filter((item) => item && item.href);
-    const next = [{href: currentPath, label: title}].concat(recent.filter((item) => item.href !== currentPath)).slice(0, 6);
+    // Key pages by path without one-shot flash params (?notice=, ?error=), so
+    // saving a form doesn't fill the rail with copies of the same page.
+    const railHref = (href) => {
+      try {
+        const u = new URL(href, location.origin);
+        ["notice", "error", "saved", "ts"].forEach((k) => u.searchParams.delete(k));
+        return u.pathname + (u.searchParams.toString() ? "?" + u.searchParams.toString() : "");
+      } catch (_) { return href; }
+    };
+    const here = railHref(currentPath);
+    const seenRail = new Set([here]);
+    const next = [{href: here, label: title}].concat(recent.map((item) => ({href: railHref(item.href), label: item.label})).filter((item) => {
+      if (seenRail.has(item.href)) return false;
+      seenRail.add(item.href);
+      return true;
+    })).slice(0, 6);
     localStorage.setItem(recentKey, JSON.stringify(next));
     if (next.length > 1) {
       const rail = document.createElement("div");
@@ -6677,6 +6775,7 @@ const modernUIScriptTag = `
   enhanceTextCounters();
   enhanceComposeTemplates();
   mountUXRound20Pass();
+  mountCRTBanner();
   mountSpatialPreview();
   applyBentoDensity();
   mountStructuralMotion();
