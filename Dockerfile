@@ -25,6 +25,10 @@ COPY --from=build /out/wolfbbs-irc /app/wolfbbs-irc
 COPY --from=build /out/wolfbbs-mailin /app/wolfbbs-mailin
 COPY --from=build /out/wolfbbs-trivia /app/wolfbbs-trivia
 COPY --from=build /out/oputil /app/oputil
+# Door manifests/art and menus are read relative to /app at runtime; without
+# them the board starts with zero doors and no menu file.
+COPY doors /app/doors
+COPY menus /app/menus
 RUN chmod +x /app/wolfbbs /app/wolfbbs-web /app/wolfbbs-irc /app/wolfbbs-mailin /app/wolfbbs-trivia /app/oputil
 EXPOSE 2222 8080 6667 8091
 ENTRYPOINT ["/app/wolfbbs", "-listen", ":2222"]
