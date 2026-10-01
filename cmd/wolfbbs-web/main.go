@@ -9200,7 +9200,7 @@ func (a *webApp) handleSettings(w http.ResponseWriter, r *http.Request) {
 			}
 			a.persistDigestPreferences(user.Handle, preset.Pref)
 			notice = "Applied " + preset.Label + " attention preset."
-		case "enable_2fa", "confirm_2fa", "cancel_2fa_setup":
+		case "enable_2fa", "confirm_2fa", "cancel_2fa_setup", "acknowledge_codes":
 			msg, err := a.handleTOTPAction(r, user.Handle, action)
 			if err != nil {
 				redirectWithError(w, r, "/settings#two-factor", err.Error())
@@ -9212,8 +9212,13 @@ func (a *webApp) handleSettings(w http.ResponseWriter, r *http.Request) {
 			}
 			notice = msg
 		case "disable_2fa":
+			hadAck := a.codesAcknowledged(user.Handle)
 			_ = a.authSvc.SetTOTPSecret(user.Handle, "")
 			_ = a.authSvc.SetRecoveryCodes(user.Handle, nil)
+			a.storeCodesAcknowledged(user.Handle, false)
+			if hadAck && !a.loadRecoveryEmail(user.Handle).verified() {
+				_ = a.authSvc.SetVerified(user.Handle, false)
+			}
 			notice = "2FA disabled."
 		case "regen_codes":
 			codes, err := auth.GenerateRecoveryCodes(8)
@@ -9221,7 +9226,12 @@ func (a *webApp) handleSettings(w http.ResponseWriter, r *http.Request) {
 				redirectWithError(w, r, "/settings", "2FA setup failed.")
 				return
 			}
+			hadAck := a.codesAcknowledged(user.Handle)
 			_ = a.authSvc.SetRecoveryCodes(user.Handle, codes)
+			a.storeCodesAcknowledged(user.Handle, false)
+			if hadAck && !a.loadRecoveryEmail(user.Handle).verified() {
+				_ = a.authSvc.SetVerified(user.Handle, false)
+			}
 			notice = "Recovery codes regenerated."
 		default:
 			http.Redirect(w, r, "/settings", http.StatusFound)
@@ -9278,6 +9288,9 @@ func (a *webApp) handleSettings(w http.ResponseWriter, r *http.Request) {
 		secondFactorBlock.WriteString(`<form method="POST" action="/settings"><input type="hidden" name="action" value="disable_2fa">` + csrf + `<button type="submit">Disable TOTP</button></form>`)
 		secondFactorBlock.WriteString(`<form method="POST" action="/settings"><input type="hidden" name="action" value="regen_codes">` + csrf + `<button type="submit">Regenerate recovery codes</button></form>`)
 		secondFactorBlock.WriteString(`<p>Recovery Codes: ` + strings.Join(user.RecoveryCodes, ", ") + `</p>`)
+		if !a.codesAcknowledged(user.Handle) {
+			secondFactorBlock.WriteString(`<form method="POST" action="/settings"><input type="hidden" name="action" value="acknowledge_codes">` + csrf + `<button type="submit">I've saved my codes</button></form>`)
+		}
 	}
 	page := `<html><body><h1>Settings</h1><p><a href="/boards">boards</a> | <a href="/mail">mail</a> | <a href="/chat">chat</a> | <a href="/status">status</a> | <a href="/config">config</a> | <a href="/help">help</a> | <a href="/logout">logout</a></p>` + messageBlock + `<p>User: ` + user.Handle + `</p><ul>` +
 		`<li>ANSI: ` + boolToText(user.ANSIEnabled) + `</li>` +
@@ -11212,6 +11225,7 @@ func (a *webApp) handleAdminUsers(w http.ResponseWriter, r *http.Request) {
 			}
 			_ = a.authSvc.SetRecoveryCodes(target, nil)
 			a.storeTOTPPending(target, nil)
+			a.storeCodesAcknowledged(target, false)
 			a.recordAdminAction(user.Handle, target, "reset_2fa", "2FA turned off by sysop")
 		}
 		http.Redirect(w, r, "/admin/users", http.StatusFound)
