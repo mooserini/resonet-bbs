@@ -3949,11 +3949,17 @@ const modernUIScriptTag = `
     button.id = "wolfbbsMobileToolsButton";
     button.type = "button";
     button.textContent = "Quick Tools";
+    button.setAttribute("aria-label", "Quick Tools");
+    button.setAttribute("aria-expanded", "false");
+    button.setAttribute("aria-controls", "wolfbbsMobileToolsOverlay");
     document.body.appendChild(button);
 
     const overlay = document.createElement("div");
     overlay.id = "wolfbbsMobileToolsOverlay";
-    overlay.innerHTML = '<div id="wolfbbsMobileToolsPanel"><div class="wolfbbs-inline-actions"><strong>Quick Tools</strong><button type="button" id="wolfbbsMobileToolsClose">Close</button></div><p class="wolfbbs-help-copy">Fast actions tuned for dense pages and narrow viewports.</p><div id="wolfbbsMobileToolsList"></div></div>';
+    overlay.setAttribute("role", "dialog");
+    overlay.setAttribute("aria-modal", "true");
+    overlay.setAttribute("aria-label", "Quick Tools Menu");
+    overlay.innerHTML = '<div id="wolfbbsMobileToolsPanel"><div class="wolfbbs-inline-actions"><strong>Quick Tools</strong><button type="button" id="wolfbbsMobileToolsClose" aria-label="Close Quick Tools">Close</button></div><p class="wolfbbs-help-copy">Fast actions tuned for dense pages and narrow viewports.</p><div id="wolfbbsMobileToolsList"></div></div>';
     document.body.appendChild(overlay);
 
     const list = overlay.querySelector("#wolfbbsMobileToolsList");
@@ -3969,11 +3975,13 @@ const modernUIScriptTag = `
 
     function hideHub() {
       overlay.classList.remove("active");
+      button.setAttribute("aria-expanded", "false");
     }
 
     function showHub() {
       render();
       overlay.classList.add("active");
+      button.setAttribute("aria-expanded", "true");
       trackTelemetry("mobile-tools:open");
     }
 
