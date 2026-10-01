@@ -1836,6 +1836,61 @@ func TestBoardsCreateReportFromReader(t *testing.T) {
 	}
 }
 
+func TestBoardsReaderPutsPostFirstAndWraps(t *testing.T) {
+	userRepo := repository.NewInMemoryUserRepository()
+	boardRepo := repository.NewInMemoryBoardRepository()
+	msgRepo := repository.NewInMemoryMessageRepository()
+	authSvc := auth.NewService(userRepo)
+	author, err := authSvc.Register("author", "password123")
+	if err != nil {
+		t.Fatalf("register author: %v", err)
+	}
+	reader, err := authSvc.Register("reader", "password123")
+	if err != nil {
+		t.Fatalf("register reader: %v", err)
+	}
+	board := &domain.Board{Name: "General", Conference: "Public", ReadACS: "role=user", WriteACS: "role=user", CreatedBy: author.ID}
+	if err := boardRepo.Create(board); err != nil {
+		t.Fatalf("create board: %v", err)
+	}
+	body := "This is a long paragraph that a normal caller writes without any line breaks and it should wrap instead of scrolling sideways forever and ever."
+	msg := &domain.Message{BoardID: board.ID, AuthorID: author.ID, Subject: "Hello", Body: body}
+	if err := msgRepo.CreateMessage(msg); err != nil {
+		t.Fatalf("create message: %v", err)
+	}
+
+	app := &webApp{
+		authSvc:   authSvc,
+		userRepo:  userRepo,
+		boardRepo: boardRepo,
+		msgRepo:   msgRepo,
+		sessions:  map[string]sessionState{},
+	}
+	sid, ok := app.createSession(reader.Handle)
+	if !ok {
+		t.Fatal("session creation failed")
+	}
+	req := httptest.NewRequest(http.MethodGet, "/boards?board="+strconv.FormatInt(board.ID, 10)+"&id="+strconv.FormatInt(msg.ID, 10), nil)
+	req.AddCookie(&http.Cookie{Name: "wolfbbs_session", Value: sid})
+	rr := httptest.NewRecorder()
+	app.handleBoards(rr, req)
+	if rr.Code != http.StatusOK {
+		t.Fatalf("expected 200 reading a post, got %d", rr.Code)
+	}
+	page := rr.Body.String()
+	if !strings.Contains(page, "wolfbbs-message-body") {
+		t.Fatal("reader body should carry a wrapping class, not a bare pre")
+	}
+	readerAt := strings.Index(page, "<h2>Reader</h2>")
+	composerAt := strings.Index(page, "<h3>New Post</h3>")
+	if readerAt < 0 || composerAt < 0 {
+		t.Fatal("expected both a reader and a composer on the permalink")
+	}
+	if readerAt > composerAt {
+		t.Fatal("permalink should show the selected post before the composer")
+	}
+}
+
 func TestAdminBoardsModerationActions(t *testing.T) {
 	userRepo := repository.NewInMemoryUserRepository()
 	boardRepo := repository.NewInMemoryBoardRepository()
