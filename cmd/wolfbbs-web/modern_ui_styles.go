@@ -221,6 +221,12 @@ pre{
   background:linear-gradient(180deg,#fafdff,#f2f7ff);
   overflow:auto;
 }
+pre.wolfbbs-message-body{
+  white-space:pre-wrap;
+  overflow-wrap:break-word;
+  word-break:break-word;
+  max-width:100%;
+}
 blockquote{
   margin:0 0 12px;
   padding:10px 13px;

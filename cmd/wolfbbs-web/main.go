@@ -7853,7 +7853,7 @@ func (a *webApp) handleBoards(w http.ResponseWriter, r *http.Request) {
 				view.WriteString(`<strong>Reply-To:</strong> #` + strconv.FormatInt(msg.ParentID, 10) + `<br>`)
 			}
 			view.WriteString(`<strong>When:</strong> ` + msg.CreatedAt.Format("2006-01-02 15:04:05") + `</p>`)
-			view.WriteString(`<pre>` + htmlEscape(msg.Body) + `</pre>`)
+			view.WriteString(`<pre class="wolfbbs-message-body">` + htmlEscape(msg.Body) + `</pre>`)
 			if len(revisions) > 0 {
 				revisionRows := strings.Builder{}
 				for _, row := range revisions {
@@ -8037,6 +8037,12 @@ func (a *webApp) handleBoards(w http.ResponseWriter, r *http.Request) {
 	if showArchived {
 		showArchivedLink = `<a href="/boards?board=` + strconv.FormatInt(board.ID, 10) + `">hide archived</a>`
 	}
+	readerFirstHTML := ""
+	trailingViewHTML := view.String()
+	if messageID > 0 {
+		readerFirstHTML = view.String()
+		trailingViewHTML = ""
+	}
 	page := `<html><body><h1>Board: ` + htmlEscape(board.Name) + `</h1>` +
 		`<p><a href="/start">start</a> | <a href="/today">today</a> | <a href="/attention">attention</a> | <a href="/bookmarks">bookmarks</a> | <a href="/events">events</a> | <a href="/boards">all boards</a> | <a href="/mail">mail</a> | <a href="/chat">chat</a> | <a href="/doors">doors</a> | <a href="/status">status</a> | <a href="/config">config</a>` + discoverLink + ` | <a href="/help">help</a> | <a href="/logout">logout</a></p>` +
 		messageBlock +
@@ -8046,6 +8052,7 @@ func (a *webApp) handleBoards(w http.ResponseWriter, r *http.Request) {
 		`<form method="POST" action="/boards" class="wolfbbs-inline-actions"><input type="hidden" name="action" value="subscribe"><input type="hidden" name="board_id" value="` + strconv.FormatInt(boardID, 10) + `">` + csrf + `<label>Subscription <select name="subscription_mode">` + boardSubscriptionOptionRows(normalizeBoardSubscriptionMode(string(subscriptions[board.ID]))) + `</select></label><button type="submit">Save</button></form>` +
 		`<form method="POST" action="/boards" class="wolfbbs-inline-actions"><input type="hidden" name="action" value="quiet_hours"><input type="hidden" name="board_id" value="` + strconv.FormatInt(boardID, 10) + `">` + csrf + `<label><input type="checkbox" name="quiet_enabled" value="1" ` + checkedAttr(quietConfigured && quietWindow.Enabled) + `> Quiet hours</label><label>from <select name="quiet_start_hour">` + quietStartOptions.String() + `</select></label><label>to <select name="quiet_end_hour">` + quietEndOptions.String() + `</select></label><button type="submit">Save Quiet Hours</button></form><p class="wolfbbs-muted">Current quiet window: ` + htmlEscape(formatQuietHoursWindow(quietWindow)) + `</p>` +
 		motdBlock + announcementBlock + boardHelperBlock + welcomeBlock + `<section class="wolfbbs-grid">` + stewardBlock + staffNoteBlock + `</section>` + emptyBoardDetail +
+		readerFirstHTML +
 		`<table border="1"><tr><th>ID</th><th>New</th><th>Subject</th><th>Author</th><th>When</th></tr>` + rows.String() + `</table>`
 	if a.canWriteBoard(user, board) {
 		page += `<h3>New Post</h3><form method="POST" action="/boards" data-draft-key="board-` + strconv.FormatInt(boardID, 10) + `-post" data-rich-compose="board-post" data-compose-signature="` + htmlEscape(user.Handle) + `"><input type="hidden" name="board_id" value="` + strconv.FormatInt(boardID, 10) + `">` + csrf +
@@ -8056,7 +8063,7 @@ func (a *webApp) handleBoards(w http.ResponseWriter, r *http.Request) {
 		page += `<p><em>Posting is disabled by board ACS policy.</em></p>`
 	}
 	page +=
-		view.String() + `</body></html>`
+		trailingViewHTML + `</body></html>`
 	w.WriteHeader(http.StatusOK)
 	_, _ = w.Write([]byte(page))
 }
