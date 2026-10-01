@@ -21,6 +21,7 @@ import (
 
 const (
 	sysSettingTOTPPendingRoot = "account.totp_pending."
+	sysSettingCodesAckRoot    = "account.codes_acknowledged."
 	totpPendingTTL            = 15 * time.Minute
 )
 
@@ -70,6 +71,38 @@ func (a *webApp) storeTOTPPending(handle string, p *totpPending) {
 		return
 	}
 	a.persistSystemSetting(key, string(raw))
+}
+
+func codesAckKey(handle string) string {
+	handle = normalizeHandleKey(handle)
+	if handle == "" {
+		return ""
+	}
+	return sysSettingCodesAckRoot + handle
+}
+
+func (a *webApp) codesAcknowledged(handle string) bool {
+	key := codesAckKey(handle)
+	if a.adminRepo == nil || key == "" {
+		return false
+	}
+	raw, err := a.adminRepo.GetSystemSetting(key)
+	if err != nil || strings.TrimSpace(raw) == "" {
+		return false
+	}
+	return true
+}
+
+func (a *webApp) storeCodesAcknowledged(handle string, acked bool) {
+	key := codesAckKey(handle)
+	if key == "" {
+		return
+	}
+	if !acked {
+		a.persistSystemSetting(key, "")
+		return
+	}
+	a.persistSystemSetting(key, time.Now().UTC().Format(time.RFC3339))
 }
 
 func totpProvisioningURI(issuer, handle, secret string) string {
@@ -131,10 +164,21 @@ func (a *webApp) handleTOTPAction(r *http.Request, handle, action string) (strin
 		}
 		_ = a.authSvc.SetRecoveryCodes(handle, codes)
 		a.storeTOTPPending(handle, nil)
+		a.storeCodesAcknowledged(handle, false)
 		return "2FA is on. Save your recovery codes below somewhere safe: each one gets you in once if you lose your phone.", nil
 	case "cancel_2fa_setup":
 		a.storeTOTPPending(handle, nil)
 		return "2FA setup cancelled. 2FA is still off.", nil
+	case "acknowledge_codes":
+		user, err := a.authSvc.GetUser(handle)
+		if err != nil || user == nil || strings.TrimSpace(user.TOTPSecret) == "" {
+			return "", errors.New("Turn on 2FA before saving recovery codes.")
+		}
+		a.storeCodesAcknowledged(handle, true)
+		if err := a.authSvc.SetVerified(handle, true); err != nil {
+			return "", errors.New("2FA setup failed.")
+		}
+		return "Recovery codes saved. Account verified.", nil
 	}
 	return "", fmt.Errorf("unknown 2FA action %q", action)
 }
