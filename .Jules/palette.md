@@ -1,0 +1,3 @@
+## 2026-03-30 - ARIA state synchronization for dynamically mounted overlay hubs
+**Learning:** In WolfBBS's web interface, floating UI hubs mounted directly onto `document.body` via dynamic JS (such as `mountMobileToolsHub`) require explicit ARIA roles (`role="dialog"`, `aria-modal="true"`), proper labels, and synchronized `aria-expanded` attributes on trigger buttons so assistive technologies can navigate mobile quick tools seamlessly.
+**Action:** Always pair dynamic overlay visibility toggling (`active` class additions) with `aria-expanded` state changes on trigger buttons and `role="dialog"` on overlay panels.
