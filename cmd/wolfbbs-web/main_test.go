@@ -1886,8 +1886,29 @@ func TestBoardsReaderPutsPostFirstAndWraps(t *testing.T) {
 	if readerAt < 0 || composerAt < 0 {
 		t.Fatal("expected both a reader and a composer on the permalink")
 	}
-	if readerAt > composerAt {
-		t.Fatal("permalink should show the selected post before the composer")
+	// The reader must lead: ahead of the subscription/quiet forms, the
+	// helper chrome, the thread view, the table, and the composer.
+	for _, marker := range []string{
+		`value="subscribe"`,
+		`value="quiet_hours"`,
+		"Reader keys:",
+		"Thread view:",
+		"<table",
+		"<h3>New Post</h3>",
+	} {
+		at := strings.Index(page, marker)
+		if at < 0 {
+			continue
+		}
+		if readerAt > at {
+			t.Fatalf("reader should come before %q on a permalink", marker)
+		}
+	}
+	// Exercise the real styling pipeline: the injected page must carry a
+	// pre-wrap rule for the message body, or long posts scroll sideways.
+	styled := injectModernUIWith(page, modernUIView{siteName: defaultSiteName()})
+	if !strings.Contains(styled, "pre.wolfbbs-message-body") || !strings.Contains(styled, "pre-wrap") {
+		t.Fatal("styled permalink should wrap the message body (pre-wrap)")
 	}
 }
 
