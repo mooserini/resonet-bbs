@@ -6048,14 +6048,13 @@ const modernUIScriptTag = `
 
   mountDashboard();
 
+  function tableHeaderRow(table) {
+    return table.querySelector("thead tr") || table.querySelector("tr");
+  }
+
   function tableRows(table) {
-    const bodyRows = Array.from(table.querySelectorAll("tbody tr"));
-    if (bodyRows.length) {
-      return bodyRows;
-    }
-    const rows = Array.from(table.querySelectorAll("tr"));
-    if (rows.length <= 1) return [];
-    return rows.slice(1);
+    const header = tableHeaderRow(table);
+    return Array.from(table.querySelectorAll("tr")).filter((row) => row !== header && !row.closest("thead"));
   }
 
   function ensureTableEmptyRow(table) {
@@ -6108,6 +6107,12 @@ const modernUIScriptTag = `
     rows.forEach((row) => parent.appendChild(row));
   }
 
+  function tableCSVText(cell) {
+    const clone = cell.cloneNode(true);
+    clone.querySelectorAll(".wolfbbs-table-sort-indicator").forEach((indicator) => indicator.remove());
+    return clone.textContent || "";
+  }
+
   function downloadTableCSV(table, filename) {
     const rows = Array.from(table.querySelectorAll("tr")).filter((row) => {
       if (row.classList.contains("wolfbbs-empty-row")) return false;
@@ -6115,7 +6120,7 @@ const modernUIScriptTag = `
     });
     const lines = rows.map((row) => {
       return Array.from(row.querySelectorAll("th,td")).map((cell) => {
-        const text = (cell.textContent || "").replace(/\s+/g, " ").trim().replace(/"/g, "\"\"");
+        const text = tableCSVText(cell).replace(/\s+/g, " ").trim().replace(/"/g, "\"\"");
         return "\"" + text + "\"";
       }).join(",");
     });
@@ -6237,10 +6242,11 @@ const modernUIScriptTag = `
       });
 
       function selectedRows() {
-        return rows.filter((row) => row.classList.contains("wolfbbs-selected-row"));
+        return tableRows(table).filter((row) => row.classList.contains("wolfbbs-selected-row"));
       }
 
-      const headerCells = Array.from(table.querySelectorAll("tr:first-child th"));
+      const headerRow = tableHeaderRow(table);
+      const headerCells = headerRow ? Array.from(headerRow.querySelectorAll("th")) : [];
       const sortState = {
         col: -1,
         direction: 1
@@ -6355,10 +6361,10 @@ const modernUIScriptTag = `
           showToast("No rows selected. Ctrl/Cmd+Click rows first.", "error");
           return;
         }
-        const header = Array.from(table.querySelectorAll("tr:first-child th, tr:first-child td")).map((cell) => (cell.textContent || "").trim());
+        const header = Array.from(tableHeaderRow(table).querySelectorAll("th,td")).map((cell) => tableCSVText(cell).trim());
         const lines = [header.map((item) => "\"" + item.replace(/"/g, "\"\"") + "\"").join(",")];
         selected.forEach((row) => {
-          const line = Array.from(row.querySelectorAll("th,td")).map((cell) => "\"" + ((cell.textContent || "").replace(/\s+/g, " ").trim().replace(/"/g, "\"\"")) + "\"").join(",");
+          const line = Array.from(row.querySelectorAll("th,td")).map((cell) => "\"" + (tableCSVText(cell).replace(/\s+/g, " ").trim().replace(/"/g, "\"\"")) + "\"").join(",");
           lines.push(line);
         });
         const blob = new Blob([lines.join("\n")], { type: "text/csv;charset=utf-8" });
