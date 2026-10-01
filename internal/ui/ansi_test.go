@@ -73,3 +73,21 @@ func TestDrawBoxHandlesANSIContentPadding(t *testing.T) {
 		}
 	}
 }
+
+func BenchmarkApplyOutputProfile(b *testing.B) {
+	raw := "\x1b[31m╔═╗\x1b[0m\r\n\x1b[32m║x║\x1b[0m\r\n\x1b[33m╚═╝\x1b[0m"
+	b.ResetTimer()
+	b.ReportAllocs()
+	for i := 0; i < b.N; i++ {
+		_ = ApplyOutputProfile(raw, false, "ascii")
+	}
+}
+
+func BenchmarkVisibleRuneLen(b *testing.B) {
+	raw := "\x1b[31m\x1b[40m  Welcome to WolfBBS Showcase  \x1b[0m"
+	b.ResetTimer()
+	b.ReportAllocs()
+	for i := 0; i < b.N; i++ {
+		_ = visibleRuneLen(raw)
+	}
+}
