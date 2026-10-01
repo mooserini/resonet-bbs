@@ -96,6 +96,12 @@ This version ships a read/write web-first control panel with role-aware routes a
 - Admin file uploads enforce `WOLFBBS_UPLOAD_MAX_BYTES` and may be vetoed by `WOLFBBS_UPLOAD_POLICY_HOOK`.
 - AI gateway calls reject private/loopback targets unless `WOLFBBS_GATEWAY_AI_ALLOW_PRIVATE=1` is set intentionally.
 
+## Verified Accounts
+- Verified means one of two honest things: a confirmed recovery email, or 2FA active with recovery codes explicitly acknowledged via the "I've saved my codes" button in `/settings`.
+- Turning on 2FA alone does not verify. Fresh code sets (re-setup, regen, admin 2FA reset) always start unacknowledged.
+- Disabling 2FA or regenerating codes recomputes Verified, but never revokes verification granted another way (bootstrap sysop, admin hand-verify) — only the codes flow's own grant.
+- Lockout rule of thumb: no confirmed email + lost password + lost codes and authenticator = host CLI (`bootstrap.sh --reset-2fa`) or sysop rescue only. Nudge callers to confirm an email before they need it.
+
 ## Read-only Mode Toggle
 - Runtime toggle keeps all mutating writes disabled, including admin saves.
 - In read-only mode, destructive operations return 403 with a short reason.
