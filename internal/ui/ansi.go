@@ -160,8 +160,30 @@ func trimRunes(value string, width int) string {
 	return string(r[:width])
 }
 
+// visibleRuneLen returns the visible rune count without ANSI escape sequences.
+// It avoids intermediate string allocations for high performance.
 func visibleRuneLen(value string) int {
-	return runeLen(stripANSIEscapes(value))
+	count := 0
+	inEscape := false
+	for i := 0; i < len(value); {
+		if inEscape {
+			ch := value[i]
+			if (ch >= 'A' && ch <= 'Z') || (ch >= 'a' && ch <= 'z') {
+				inEscape = false
+			}
+			i++
+			continue
+		}
+		if value[i] == 0x1b {
+			inEscape = true
+			i++
+			continue
+		}
+		_, size := utf8.DecodeRuneInString(value[i:])
+		count++
+		i += size
+	}
+	return count
 }
 
 func trimANSIVisible(value string, width int) string {

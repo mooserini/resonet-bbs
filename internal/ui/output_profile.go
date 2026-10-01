@@ -2,6 +2,28 @@ package ui
 
 import "strings"
 
+var asciiBoxReplacer = strings.NewReplacer(
+	"╔", "+",
+	"╗", "+",
+	"╚", "+",
+	"╝", "+",
+	"═", "-",
+	"║", "|",
+	"╠", "+",
+	"╣", "+",
+	"╦", "+",
+	"╩", "+",
+	"╬", "+",
+	"│", "|",
+	"─", "-",
+	"┌", "+",
+	"┐", "+",
+	"└", "+",
+	"┘", "+",
+	"┤", "+",
+	"├", "+",
+)
+
 func ApplyOutputProfile(frame string, ansiEnabled bool, encoding string) string {
 	enc := strings.ToLower(strings.TrimSpace(encoding))
 	if !ansiEnabled {
@@ -14,28 +36,7 @@ func ApplyOutputProfile(frame string, ansiEnabled bool, encoding string) string 
 }
 
 func mapBoxDrawingToASCII(value string) string {
-	replacer := strings.NewReplacer(
-		"╔", "+",
-		"╗", "+",
-		"╚", "+",
-		"╝", "+",
-		"═", "-",
-		"║", "|",
-		"╠", "+",
-		"╣", "+",
-		"╦", "+",
-		"╩", "+",
-		"╬", "+",
-		"│", "|",
-		"─", "-",
-		"┌", "+",
-		"┐", "+",
-		"└", "+",
-		"┘", "+",
-		"┤", "+",
-		"├", "+",
-	)
-	return replacer.Replace(value)
+	return asciiBoxReplacer.Replace(value)
 }
 
 func stripANSIEscapes(value string) string {
